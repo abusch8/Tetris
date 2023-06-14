@@ -1,9 +1,9 @@
 use std::{io::{stdout, Write}, time::{Instant, Duration}};
 use crossterm::{
     Result, QueueableCommand, execute,
-    style::{PrintStyledContent, StyledContent, Color, Stylize, ContentStyle},
+    style::{PrintStyledContent, StyledContent, Color, Stylize, ContentStyle, Print},
     cursor::{MoveTo, Hide, Show},
-    terminal::{Clear, ClearType, enable_raw_mode, disable_raw_mode},
+    terminal::{Clear, ClearType, enable_raw_mode, disable_raw_mode, SetTitle},
     event::{read, Event, poll, KeyCode},
 };
 use rand::Rng;
@@ -30,22 +30,22 @@ impl Tetromino {
     fn new(variant: TetrominoVariant) -> Self {
         match variant {
             TetrominoVariant::I => Tetromino {
-                shape: vec![(4, 1), (5, 1), (6, 1), (7, 1)],
+                shape: vec![(3, 1), (4, 1), (5, 1), (6, 1)],
                 color: Color::Cyan,
                 variant,
             },
             TetrominoVariant::J => Tetromino {
-                shape: vec![(5, 1), (6, 1), (7, 1), (7, 2)],
+                shape: vec![(4, 0), (5, 0), (6, 0), (6, 1)],
                 color: Color::Blue,
                 variant,
             },
             TetrominoVariant::L => Tetromino {
-                shape: vec![(5, 1), (6, 1), (7, 1), (7, 0)],
+                shape: vec![(4, 1), (5, 1), (6, 1), (6, 0)],
                 color: Color::White,
                 variant,
             },
             TetrominoVariant::O => Tetromino {
-                shape: vec![(5, 1), (5, 2), (6, 1), (6, 2)],
+                shape: vec![(4, 0), (4, 1), (5, 0), (5, 1)],
                 color: Color::Yellow,
                 variant,
             },
@@ -55,7 +55,7 @@ impl Tetromino {
                 variant,
             },
             TetrominoVariant::T => Tetromino {
-                shape: vec![(5, 0), (6, 0), (6, 1), (7, 0)],
+                shape: vec![(4, 0), (5, 0), (5, 1), (6, 0)],
                 color: Color::Magenta,
                 variant,
             },
@@ -69,7 +69,7 @@ impl Tetromino {
 }
 
 fn gen() -> TetrominoVariant {
-    TetrominoVariant::from_i32(rand::thread_rng().gen_range(1..7)).unwrap()
+    TetrominoVariant::from_i32(rand::thread_rng().gen_range(0..7)).unwrap()
 }
 
 struct Game {
@@ -144,8 +144,9 @@ impl Game {
     }
 
     fn hold(&mut self) {
+        let swap = self.holding.clone().unwrap_or(Tetromino::new(gen()));
         self.holding = Some(Tetromino::new(self.falling.variant.clone()));
-        self.falling = self.holding.clone().unwrap_or(Tetromino::new(gen()));
+        self.falling = swap;
     }
 }
 
@@ -159,7 +160,7 @@ fn draw(game: &Game) -> Result<()> {
         for y in 0..height {
             stdout
                 .queue(MoveTo(x as u16, y as u16))?
-                .queue(PrintStyledContent((|| -> StyledContent<&str> {
+                .queue(PrintStyledContent((|| {
                     for block in game.falling.shape.iter() {
                         if ((block.0 + 1) * 2 == x || (block.0 + 1) * 2 - 1 == x) && block.1 + 1 == y {
                             return " ".on(game.falling.color)
@@ -180,7 +181,29 @@ fn draw(game: &Game) -> Result<()> {
                 })()))?;
         }
     }
-    stdout.flush()?;
+    if game.holding.is_some() {
+        stdout
+            .queue(MoveTo(width + 2, 4))?
+            .queue(Print("        "))?
+            .queue(MoveTo(width + 2, 5))?
+            .queue(Print("        "))?;
+        for block in game.holding.as_ref().unwrap().shape.iter() {
+            stdout
+                .queue(MoveTo((block.0 - 3) * 2 + width + 2, block.1 + 4))?
+                .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?
+                .queue(MoveTo((block.0 - 3) * 2 + width + 1, block.1 + 4))?
+                .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?;
+        }
+    }
+    stdout
+        .queue(MoveTo(width + 1, 2))?
+        .queue(Print("HOLDING:"))?
+        .queue(MoveTo(width + 1, 7))?
+        .queue(Print(format!("SCORE: {}", game.score)))?
+        .queue(MoveTo(width + 1, 8))?
+        .queue(Print(format!("LEVEL: {}", game.level)))?
+        .queue(MoveTo(0, 0))?
+        .flush()?;
 
     Ok(())
 }
@@ -190,7 +213,7 @@ fn main() -> Result<()> {
 
     enable_raw_mode()?;
 
-    execute!(stdout, Hide, Clear(ClearType::All))?;
+    execute!(stdout, Hide, Clear(ClearType::All), SetTitle("TETRIS"))?;
 
     macro_rules! quit {
         ($msg:expr) => {{
