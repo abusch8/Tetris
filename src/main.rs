@@ -75,6 +75,7 @@ fn gen() -> TetrominoVariant {
 struct Game {
     falling: Tetromino,
     holding: Option<Tetromino>,
+    can_hold: bool,
     next: Vec<Tetromino>,
     placed: Vec<Tetromino>,
     score: u32,
@@ -86,6 +87,7 @@ impl Game {
         Game {
             falling: Tetromino::new(gen()),
             holding: None,
+            can_hold: true,
             next: vec![Tetromino::new(gen()), Tetromino::new(gen()), Tetromino::new(gen())],
             placed: Vec::new(),
             score: 0,
@@ -107,6 +109,7 @@ impl Game {
         self.placed.push(self.falling.clone());
         self.falling = self.next.pop().unwrap();
         self.next.push(Tetromino::new(gen()));
+        self.can_hold = true;
     }
 
     fn tick(&mut self) {
@@ -139,14 +142,21 @@ impl Game {
         }
     }
 
+    fn drop(&mut self) {
+
+    }
+
     fn rotate(&mut self) {
 
     }
 
     fn hold(&mut self) {
-        let swap = self.holding.clone().unwrap_or(Tetromino::new(gen()));
-        self.holding = Some(Tetromino::new(self.falling.variant.clone()));
-        self.falling = swap;
+        if self.can_hold {
+            let swap = self.holding.clone().unwrap_or(Tetromino::new(gen()));
+            self.holding = Some(Tetromino::new(self.falling.variant.clone()));
+            self.falling = swap;
+            self.can_hold = false;
+        }
     }
 }
 
@@ -183,9 +193,9 @@ fn draw(game: &Game) -> Result<()> {
     }
     if game.holding.is_some() {
         stdout
-            .queue(MoveTo(width + 2, 4))?
+            .queue(MoveTo(width + 1, 4))?
             .queue(Print("        "))?
-            .queue(MoveTo(width + 2, 5))?
+            .queue(MoveTo(width + 1, 5))?
             .queue(Print("        "))?;
         for block in game.holding.as_ref().unwrap().shape.iter() {
             stdout
@@ -245,6 +255,7 @@ fn main() -> Result<()> {
                             KeyCode::Char('a') | KeyCode::Left => game.shift(Direction::Left),
                             KeyCode::Char('d') | KeyCode::Right => game.shift(Direction::Right),
                             KeyCode::Char('c') => game.hold(),
+                            KeyCode::Char(' ') => game.drop(),
                             KeyCode::Char('q') | KeyCode::Esc => quit!(""),
                             _ => continue,
                         };
