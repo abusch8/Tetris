@@ -132,16 +132,19 @@ impl Game {
     fn tick(&mut self) {
         if self.touching() {
             self.place();
-        } else {
-            for position in self.falling.shape.iter_mut() {
-                position.1 += 1;
-            }
-            self.falling.origin.1 += 1.0;
+            return
         }
+        for position in self.falling.shape.iter_mut() {
+            position.1 += 1;
+        }
+        self.falling.origin.1 += 1.0;
     }
 
     fn shift(&mut self, direction: Direction) {
-        if self.touching() { self.place() }
+        if self.touching() {
+            self.place();
+            return
+        }
         match direction {
             Direction::Left => {
                 if self.falling.shape[0].0 > 0 {
@@ -200,7 +203,7 @@ fn draw(game: &Game) -> Result<()> {
     for x in 0..width {
         for y in 0..height {
             stdout
-                .queue(MoveTo(x as u16, y as u16))?
+                .queue(MoveTo(x, y))?
                 .queue(PrintStyledContent((|| {
                     for position in game.falling.shape.iter() {
                         if ((position.0 + 1) * 2 == x || (position.0 + 1) * 2 - 1 == x) && position.1 + 1 == y {
@@ -234,30 +237,43 @@ fn draw(game: &Game) -> Result<()> {
         }
     }
     stdout
-        .queue(MoveTo(8, 0))?
-        .queue(PrintStyledContent("TETRIS".bold()))?;
+        .queue(MoveTo(width + 1, 4))?
+        .queue(Print("        "))?
+        .queue(MoveTo(width + 1, 5))?
+        .queue(Print("        "))?;
+    for position in game.next[game.next.len() - 1].shape.iter() {
+        stdout
+            .queue(MoveTo((position.0 - 3) * 2 + width + 2, position.1 + 4))?
+            .queue(PrintStyledContent(" ".on(game.next[game.next.len() - 1].color)))?
+            .queue(MoveTo((position.0 - 3) * 2 + width + 1, position.1 + 4))?
+            .queue(PrintStyledContent(" ".on(game.next[game.next.len() - 1].color)))?;
+    }
     if game.holding.is_some() {
         stdout
-            .queue(MoveTo(width + 1, 4))?
+            .queue(MoveTo(width + 1, 9))?
             .queue(Print("        "))?
-            .queue(MoveTo(width + 1, 5))?
+            .queue(MoveTo(width + 1, 10))?
             .queue(Print("        "))?;
         for position in game.holding.as_ref().unwrap().shape.iter() {
             stdout
-                .queue(MoveTo((position.0 - 3) * 2 + width + 2, position.1 + 4))?
+                .queue(MoveTo((position.0 - 3) * 2 + width + 2, position.1 + 9))?
                 .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?
-                .queue(MoveTo((position.0 - 3) * 2 + width + 1, position.1 + 4))?
+                .queue(MoveTo((position.0 - 3) * 2 + width + 1, position.1 + 9))?
                 .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?;
         }
     }
     stdout
+        .queue(MoveTo(8, 0))?
+        .queue(PrintStyledContent("TETRIS".bold()))?
         .queue(MoveTo(width + 1, 2))?
-        .queue(Print("HOLDING:"))?
+        .queue(Print("NEXT:"))?
         .queue(MoveTo(width + 1, 7))?
+        .queue(Print("HOLDING:"))?
+        .queue(MoveTo(width + 1, 12))?
         .queue(Print(format!("SCORE: {}", game.score)))?
-        .queue(MoveTo(width + 1, 8))?
+        .queue(MoveTo(width + 1, 13))?
         .queue(Print(format!("LEVEL: {}", game.level)))?
-        .queue(MoveTo(width + 1, 9))?
+        .queue(MoveTo(width + 1, 14))?
         .queue(Print(format!("LINES: {}", game.lines)))?
         .queue(MoveTo(0, 0))?
         .flush()?;
@@ -271,15 +287,6 @@ fn main() -> Result<()> {
     enable_raw_mode()?;
 
     execute!(stdout, Hide, Clear(ClearType::All), SetTitle("TETRIS"))?;
-
-    macro_rules! quit {
-        ($msg:expr) => {{
-            disable_raw_mode()?;
-            execute!(stdout, Show, Clear(ClearType::All))?;
-            println!("{}", $msg);
-            break
-        }};
-    }
 
     let game = &mut Game::start();
 
@@ -303,7 +310,12 @@ fn main() -> Result<()> {
                             KeyCode::Char('d') | KeyCode::Right => game.shift(Direction::Right),
                             KeyCode::Char('c') => game.hold(),
                             KeyCode::Char(' ') => game.drop(),
-                            KeyCode::Char('q') | KeyCode::Esc => quit!(""),
+                            KeyCode::Char('q') | KeyCode::Esc => {
+                                disable_raw_mode()?;
+                                execute!(stdout, Show, Clear(ClearType::All))?;
+                                println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.score, game.level, game.lines);
+                                break
+                            },
                             _ => continue,
                         };
                     },
