@@ -16,7 +16,7 @@ type Origin = (f32, f32);
 const GAME_DIMENSIONS: Dimension = (10, 20);
 
 #[derive(Clone, Copy, FromPrimitive)]
-enum Direction { Left, Right }
+enum Direction { Left, Right, Down }
 
 #[derive(Clone, Copy, FromPrimitive, PartialEq)]
 enum TetrominoVariant { I, J, L, O, S, T, Z }
@@ -99,7 +99,7 @@ impl Game {
             falling: Tetromino::new(gen()),
             holding: None,
             can_hold: true,
-            next: vec![Tetromino::new(gen()); 3],
+            next: vec![Tetromino::new(gen()); 8],
             placed: vec![vec![None; GAME_DIMENSIONS.0]; GAME_DIMENSIONS.1],
             score: 0,
             level,
@@ -164,11 +164,22 @@ impl Game {
                     self.falling.origin.0 += 1.0;
                 }
             },
+            Direction::Down => {
+                for position in self.falling.shape.iter_mut() {
+                    position.1 += 1;
+                }
+                self.falling.origin.1 += 1.0;
+            },
         }
     }
 
     fn drop(&mut self) {
-
+        while !self.touching() {
+            for position in self.falling.shape.iter_mut() {
+                position.1 += 1;
+            }
+        }
+        self.place();
     }
 
     fn rotate(&mut self) {
@@ -342,6 +353,7 @@ fn main() -> Result<()> {
                         match event.code {
                             KeyCode::Char('w') | KeyCode::Up => game.rotate(),
                             KeyCode::Char('a') | KeyCode::Left => game.shift(Direction::Left),
+                            KeyCode::Char('s') | KeyCode::Down => game.shift(Direction::Down),
                             KeyCode::Char('d') | KeyCode::Right => game.shift(Direction::Right),
                             KeyCode::Char('c') => game.hold(),
                             KeyCode::Char(' ') => game.drop(),
