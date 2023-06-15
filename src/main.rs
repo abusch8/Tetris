@@ -13,7 +13,7 @@ use num_traits::FromPrimitive;
 type Dimension = (usize, usize);
 type Origin = (f32, f32);
 
-const GAME_DIMENSIONS: Dimension = (10, 20);
+const BOARD_DIMENSION: Dimension = (10, 20);
 
 #[derive(Clone, Copy, FromPrimitive)]
 enum Direction { Left, Right, Down }
@@ -87,7 +87,7 @@ struct Game {
     holding: Option<Tetromino>,
     can_hold: bool,
     ghost: Option<Tetromino>,
-    next: Vec<Tetromino>,
+    bag: Vec<Tetromino>,
     placed: Vec<Vec<Option<Color>>>,
     score: u32,
     level: u32,
@@ -101,8 +101,8 @@ impl Game {
             holding: None,
             can_hold: true,
             ghost: None,
-            next: vec![Tetromino::new(gen()); 8],
-            placed: vec![vec![None; GAME_DIMENSIONS.0]; GAME_DIMENSIONS.1],
+            bag: vec![Tetromino::new(gen()); 8],
+            placed: vec![vec![None; BOARD_DIMENSION.0]; BOARD_DIMENSION.1],
             score: 0,
             level,
             lines: 0,
@@ -111,26 +111,8 @@ impl Game {
         game
     }
 
-    fn touching(&self, tetromino: &Tetromino) -> bool {
-        tetromino.shape.iter().any(|position| {
-            position.1 + 1 == GAME_DIMENSIONS.1 || self.placed.iter().enumerate().any(|(i, row)| {
-                row.iter().enumerate().any(|(j, block)| block.is_some() && j == position.0 && i == position.1 + 1)
-            })
-        })
-    }
-
-    fn place(&mut self) {
-        for position in self.falling.shape.iter() {
-            self.placed[position.1][position.0] = Some(self.falling.color);
-        }
-        self.falling = self.next.pop().unwrap();
-        self.next.push(Tetromino::new(gen()));
-        self.can_hold = true;
-        self.update_ghost();
-    }
-
     fn tick(&mut self) {
-        if self.touching(&self.falling) {
+        if self.hitting_bottom(&self.falling) {
             self.place();
             return
         }
@@ -138,7 +120,7 @@ impl Game {
         for (i, row) in self.placed.clone().iter().enumerate() {
             if row.iter().all(|block| block.is_some()) {
                 self.placed.remove(i);
-                self.placed.insert(0, vec![None; GAME_DIMENSIONS.0]);
+                self.placed.insert(0, vec![None; BOARD_DIMENSION.0]);
                 num_cleared += 1;
             }
         }
@@ -156,9 +138,18 @@ impl Game {
         self.falling.origin.1 += 1.0;
     }
 
+    fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
+        tetromino.shape.iter().any(|position| {
+            position.1 + 1 == BOARD_DIMENSION.1 || self.placed.iter().enumerate().any(|(i, row)| {
+                row.iter().enumerate().any(|(j, block)| block.is_some() && j == position.0 && i == position.1 + 1)
+            })
+        })
+    }
+
+
     fn update_ghost(&mut self) {
         let mut ghost = self.falling.clone();
-        while !self.touching(&ghost) {
+        while !self.hitting_bottom(&ghost) {
             for position in ghost.shape.iter_mut() {
                 position.1 += 1;
             }
@@ -167,13 +158,9 @@ impl Game {
     }
 
     fn shift(&mut self, direction: Direction) {
-        if self.touching(&self.falling) {
-            self.place();
-            return
-        }
         match direction {
             Direction::Left => {
-                if self.falling.shape.iter().all(|position| position.0 > 0) {
+                if self.falling.shape.iter().all(|position| position.0 > 0 && self.placed[position.1][position.0 - 1].is_none()) {
                     for position in self.falling.shape.iter_mut() {
                         position.0 -= 1;
                     }
@@ -181,7 +168,7 @@ impl Game {
                 }
             },
             Direction::Right => {
-                if self.falling.shape.iter().all(|position| position.0 < GAME_DIMENSIONS.0 - 1) {
+                if self.falling.shape.iter().all(|position| position.0 < BOARD_DIMENSION.0 - 1 && self.placed[position.1][position.0 + 1].is_none()) {
                     for position in self.falling.shape.iter_mut() {
                         position.0 += 1;
                     }
@@ -189,22 +176,15 @@ impl Game {
                 }
             },
             Direction::Down => {
-                for position in self.falling.shape.iter_mut() {
-                    position.1 += 1;
+                if self.falling.shape.iter().all(|position| position.1 < BOARD_DIMENSION.1 - 1 && self.placed[position.1 + 1][position.0].is_none()) {
+                    for position in self.falling.shape.iter_mut() {
+                        position.1 += 1;
+                    }
+                    self.falling.origin.1 += 1.0;
                 }
-                self.falling.origin.1 += 1.0;
             },
         }
         self.update_ghost();
-    }
-
-    fn drop(&mut self) {
-        while !self.touching(&self.falling) {
-            for position in self.falling.shape.iter_mut() {
-                position.1 += 1;
-            }
-        }
-        self.place();
     }
 
     fn rotate(&mut self) {
@@ -223,6 +203,25 @@ impl Game {
         self.update_ghost();
     }
 
+    fn place(&mut self) {
+        for position in self.falling.shape.iter() {
+            self.placed[position.1][position.0] = Some(self.falling.color);
+        }
+        self.falling = self.bag.pop().unwrap();
+        self.bag.push(Tetromino::new(gen()));
+        self.can_hold = true;
+        self.update_ghost();
+    }
+
+    fn drop(&mut self) {
+        while !self.hitting_bottom(&self.falling) {
+            for position in self.falling.shape.iter_mut() {
+                position.1 += 1;
+            }
+        }
+        self.place();
+    }
+
     fn hold(&mut self) {
         if self.can_hold {
             let swap = self.holding.clone().unwrap_or(Tetromino::new(gen()));
@@ -234,8 +233,8 @@ impl Game {
     }
 }
 
-const WIDTH: u16 = GAME_DIMENSIONS.0 as u16 * 2 + 2;
-const HEIGHT: u16 = GAME_DIMENSIONS.1 as u16 + 2;
+const WIDTH: u16 = BOARD_DIMENSION.0 as u16 * 2 + 2;
+const HEIGHT: u16 = BOARD_DIMENSION.1 as u16 + 2;
 
 fn render(game: &Game) -> Result<()> {
     let mut stdout = stdout();
@@ -271,12 +270,12 @@ fn render(game: &Game) -> Result<()> {
         .queue(Print("        "))?
         .queue(MoveTo(WIDTH + 1, 5))?
         .queue(Print("        "))?;
-    for position in game.next[game.next.len() - 1].shape.iter() {
+    for position in game.bag.last().unwrap().shape.iter() {
         stdout
             .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 2, position.1 as u16 + 4))?
-            .queue(PrintStyledContent(" ".on(game.next[game.next.len() - 1].color)))?
+            .queue(PrintStyledContent(" ".on(game.bag.last().unwrap().color)))?
             .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 1, position.1 as u16 + 4))?
-            .queue(PrintStyledContent(" ".on(game.next[game.next.len() - 1].color)))?;
+            .queue(PrintStyledContent(" ".on(game.bag.last().unwrap().color)))?;
     }
     if game.holding.is_some() {
         stdout
