@@ -134,13 +134,22 @@ impl Game {
             self.place();
             return
         }
+        let mut num_cleared = 0;
         for (i, row) in self.placed.clone().iter().enumerate() {
             if row.iter().all(|block| block.is_some()) {
                 self.placed.remove(i);
                 self.placed.insert(0, vec![None; GAME_DIMENSIONS.0]);
-                self.lines += 1;
+                num_cleared += 1;
             }
         }
+        self.lines += num_cleared;
+        self.score += match num_cleared {
+            1 => self.level * 100,
+            2 => self.level * 300,
+            3 => self.level * 500,
+            4 => self.level * 800,
+            _ => 0,
+        };
         for position in self.falling.shape.iter_mut() {
             position.1 += 1;
         }
@@ -228,7 +237,7 @@ impl Game {
 const WIDTH: u16 = GAME_DIMENSIONS.0 as u16 * 2 + 2;
 const HEIGHT: u16 = GAME_DIMENSIONS.1 as u16 + 2;
 
-fn render_board(game: &Game) -> Result<()> {
+fn render(game: &Game) -> Result<()> {
     let mut stdout = stdout();
 
     for x in 1..WIDTH - 1 {
@@ -296,34 +305,32 @@ fn render_board(game: &Game) -> Result<()> {
     Ok(())
 }
 
-fn render_menu(game: &Game) -> Result<()> {
+fn draw(game: &Game) -> Result<()> {
     let mut stdout = stdout();
 
     for x in 0..WIDTH {
         for y in 0..HEIGHT {
             stdout
                 .queue(MoveTo(x, y))?
-                .queue(PrintStyledContent((|| {
-                    StyledContent::new(ContentStyle::new(),
-                        if x == 0 && y == 0 {
-                            "╔"
-                        } else if x == 0 && y == HEIGHT - 1 {
-                            "╚"
-                        } else if x == WIDTH - 1 && y == 0 {
-                            "╗"
-                        } else if x == WIDTH -1 &&  y == HEIGHT - 1 {
-                            "╝"
-                        } else if x == 0 || x == WIDTH - 1 {
-                            "║"
-                        } else if y == 0 || y == HEIGHT - 1 {
-                            "═"
-                        } else if x % 2 == 0 {
-                            "."
-                        } else {
-                            " "
-                        }
-                    )
-                })()))?;
+                .queue(PrintStyledContent(StyledContent::new(ContentStyle::new(),
+                    if x == 0 && y == 0 {
+                        "╔"
+                    } else if x == 0 && y == HEIGHT - 1 {
+                        "╚"
+                    } else if x == WIDTH - 1 && y == 0 {
+                        "╗"
+                    } else if x == WIDTH -1 &&  y == HEIGHT - 1 {
+                        "╝"
+                    } else if x == 0 || x == WIDTH - 1 {
+                        "║"
+                    } else if y == 0 || y == HEIGHT - 1 {
+                        "═"
+                    } else if x % 2 == 0 {
+                        "."
+                    } else {
+                        " "
+                    }
+                )))?;
         }
     }
     stdout
@@ -357,7 +364,7 @@ fn main() -> Result<()> {
 
     let game = &mut Game::start(level);
 
-    render_menu(game)?;
+    draw(game)?;
 
     let loop_frequency = game.level;
     let sleep_duration = Duration::from_secs(1) / loop_frequency;
@@ -365,31 +372,28 @@ fn main() -> Result<()> {
     Ok(loop {
         let loop_start = Instant::now();
 
-        render_board(game)?;
+        render(game)?;
 
         let work_duration = loop_start.elapsed();
 
         if let Some(remaining_duration) = sleep_duration.checked_sub(work_duration) {
             if poll(remaining_duration)? {
-                match read()? {
-                    Event::Key(event) => {
-                        match event.code {
-                            KeyCode::Char('w') | KeyCode::Up => game.rotate(),
-                            KeyCode::Char('a') | KeyCode::Left => game.shift(Direction::Left),
-                            KeyCode::Char('s') | KeyCode::Down => game.shift(Direction::Down),
-                            KeyCode::Char('d') | KeyCode::Right => game.shift(Direction::Right),
-                            KeyCode::Char('c') => game.hold(),
-                            KeyCode::Char(' ') => game.drop(),
-                            KeyCode::Char('q') | KeyCode::Esc => {
-                                disable_raw_mode()?;
-                                execute!(stdout, Show, Clear(ClearType::All))?;
-                                println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.score, game.level, game.lines);
-                                break
-                            },
-                            _ => continue,
-                        };
-                    },
-                    _ => continue,
+                if let Event::Key(event) = read()? {
+                    match event.code {
+                        KeyCode::Char('w') | KeyCode::Char('W') | KeyCode::Up => game.rotate(),
+                        KeyCode::Char('a') | KeyCode::Char('A') | KeyCode::Left => game.shift(Direction::Left),
+                        KeyCode::Char('s') | KeyCode::Char('S') | KeyCode::Down => game.shift(Direction::Down),
+                        KeyCode::Char('d') | KeyCode::Char('D') | KeyCode::Right => game.shift(Direction::Right),
+                        KeyCode::Char('c') | KeyCode::Char('C') => game.hold(),
+                        KeyCode::Char(' ') => game.drop(),
+                        KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
+                            disable_raw_mode()?;
+                            execute!(stdout, Show, Clear(ClearType::All))?;
+                            println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.score, game.level, game.lines);
+                            break
+                        },
+                        _ => continue,
+                    };
                 }
             }
             game.tick();
