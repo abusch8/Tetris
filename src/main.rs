@@ -389,8 +389,9 @@ fn main() -> Result<()> {
 
     draw(game)?;
 
-    let loop_frequency = game.level;
-    let sleep_duration = Duration::from_secs(1) / loop_frequency;
+    let tick_frequency = game.level;
+    let sleep_duration = Duration::from_secs(1) / tick_frequency;
+    let mut loop_start = Instant::now();
 
     macro_rules! quit {
         () => {{
@@ -402,8 +403,6 @@ fn main() -> Result<()> {
     }
 
     Ok(loop {
-        let loop_start = Instant::now();
-
         render(game)?;
 
         if game.end { quit!() }
@@ -426,6 +425,9 @@ fn main() -> Result<()> {
                 }
             }
         }
-        game.tick();
+        if sleep_duration.checked_sub(work_duration).is_none() {
+            game.tick();
+            loop_start = Instant::now();
+        }
     })
 }
