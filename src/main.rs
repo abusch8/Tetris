@@ -171,7 +171,7 @@ impl Game {
         match direction {
             Direction::Left => {
                 if self.falling.shape.iter().all(|position| position.0 > 0
-                && (position.1.is_negative() || self.placed[position.1 as usize][position.0 as usize - 1].is_none())) {
+                && (position.1.is_negative() || self.placed[position.1 as usize][(position.0 - 1) as usize].is_none())) {
                     for position in self.falling.shape.iter_mut() {
                         position.0 -= 1;
                     }
@@ -180,7 +180,7 @@ impl Game {
             },
             Direction::Right => {
                 if self.falling.shape.iter().all(|position| position.0 < BOARD_DIMENSION.0 - 1
-                && (position.1.is_negative() || self.placed[position.1 as usize][position.0 as usize + 1].is_none())) {
+                && (position.1.is_negative() || self.placed[position.1 as usize][(position.0 + 1) as usize].is_none())) {
                     for position in self.falling.shape.iter_mut() {
                         position.0 += 1;
                     }
@@ -189,7 +189,7 @@ impl Game {
             },
             Direction::Down => {
                 if self.falling.shape.iter().all(|position| position.1 < BOARD_DIMENSION.1 - 1
-                && self.placed[position.1 as usize + 1][position.0 as usize].is_none()) {
+                && (position.1.is_negative() || self.placed[(position.1 + 1) as usize][position.0 as usize].is_none())) {
                     for position in self.falling.shape.iter_mut() {
                         position.1 += 1;
                     }
@@ -276,20 +276,20 @@ fn render(game: &Game) -> Result<()> {
                 .queue(MoveTo(x, y))?
                 .queue(PrintStyledContent((|| {
                     for position in game.falling.shape.iter() {
-                        if !position.1.is_negative() && position.1 as u16 + 1 == y
-                        && ((position.0 as u16 + 1) * 2 == x || (position.0 as u16 + 1) * 2 - 1 == x) {
+                        if !position.1.is_negative() && (position.1 + 1) as u16 == y
+                        && ((position.0 + 1) as u16 * 2 == x || (position.0 + 1) as u16 * 2 - 1 == x) {
                             return " ".on(game.falling.color)
                         }
                     }
                     for position in game.ghost.as_ref().unwrap().shape.iter() {
-                        if !position.1.is_negative() && position.1 as u16 + 1 == y
-                        && ((position.0 as u16 + 1) * 2 == x || (position.0 as u16 + 1) * 2 - 1 == x) {
+                        if !position.1.is_negative() && (position.1 + 1) as u16 == y
+                        && ((position.0 + 1) as u16 * 2 == x || (position.0 + 1) as u16 * 2 - 1 == x) {
                             return "░".with(game.falling.color)
                         }
                     }
                     for (i, row) in game.placed.iter().enumerate() {
                         for (j, color) in row.iter().enumerate() {
-                            if color.is_some() && i as u16 + 1 == y && ((j as u16 + 1) * 2 == x || (j as u16 + 1) * 2 - 1 == x) {
+                            if color.is_some() && (i + 1) as u16 == y && ((j + 1) as u16 * 2 == x || (j + 1) as u16 * 2 - 1 == x) {
                                 return " ".on(color.unwrap())
                             }
                         }
@@ -305,9 +305,9 @@ fn render(game: &Game) -> Result<()> {
         .queue(Print("        "))?;
     for position in game.bag.last().unwrap().shape.iter() {
         stdout
-            .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 2, (position.1 + 2) as u16 + 4))?
+            .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 2, (position.1 + 2) as u16 + 4))?
             .queue(PrintStyledContent(" ".on(game.bag.last().unwrap().color)))?
-            .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 1, (position.1 + 2) as u16 + 4))?
+            .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 1, (position.1 + 2) as u16 + 4))?
             .queue(PrintStyledContent(" ".on(game.bag.last().unwrap().color)))?;
     }
     if game.holding.is_some() {
@@ -318,9 +318,9 @@ fn render(game: &Game) -> Result<()> {
             .queue(Print("        "))?;
         for position in game.holding.as_ref().unwrap().shape.iter() {
             stdout
-                .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 2, (position.1 + 2) as u16 + 9))?
+                .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 2, (position.1 + 2) as u16 + 9))?
                 .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?
-                .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 1, (position.1 + 2) as u16 + 9))?
+                .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 1, (position.1 + 2) as u16 + 9))?
                 .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?;
         }
     }
