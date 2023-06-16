@@ -92,7 +92,7 @@ struct Game {
     score: u32,
     level: u32,
     lines: u32,
-    is_lost: bool,
+    end: bool,
 }
 
 impl Game {
@@ -107,17 +107,13 @@ impl Game {
             score: 0,
             level,
             lines: 0,
-            is_lost: false,
+            end: false,
         };
         game.update_ghost();
         game
     }
 
     fn tick(&mut self) {
-        if self.hitting_bottom(&self.falling) {
-            self.place();
-            return
-        }
         let mut num_cleared = 0;
         for (i, row) in self.placed.clone().iter().enumerate() {
             if row.iter().all(|block| block.is_some()) {
@@ -137,10 +133,7 @@ impl Game {
             4 => self.level * 800,
             _ => 0,
         };
-        for position in self.falling.shape.iter_mut() {
-            position.1 += 1;
-        }
-        self.falling.origin.1 += 1.0;
+        self.shift(Direction::Down);
     }
 
     fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
@@ -210,10 +203,8 @@ impl Game {
         for position in self.falling.shape.iter() {
             let x = position.0 as f32 - self.falling.origin.0;
             let y = position.1 as f32 - self.falling.origin.1;
-            let mut xp = x * angle.cos() - y * angle.sin();
-            let mut yp = x * angle.sin() + y * angle.cos();
-            xp += self.falling.origin.0;
-            yp += self.falling.origin.1;
+            let xp = (x * angle.cos() - y * angle.sin()) + self.falling.origin.0;
+            let yp = (x * angle.sin() + y * angle.cos()) + self.falling.origin.1;
             rotated.push((xp.round() as i32, yp.round() as i32));
         }
         while rotated.iter().any(|position| position.0 < 0) {
@@ -233,7 +224,7 @@ impl Game {
     fn place(&mut self) {
         for position in self.falling.shape.iter() {
             if position.1.is_negative() {
-                self.is_lost = true;
+                self.end = true;
                 return
             }
             self.placed[position.1 as usize][position.0 as usize] = Some(self.falling.color);
@@ -415,7 +406,7 @@ fn main() -> Result<()> {
 
         render(game)?;
 
-        if game.is_lost { quit!() }
+        if game.end { quit!() }
 
         let work_duration = loop_start.elapsed();
 
