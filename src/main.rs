@@ -10,7 +10,7 @@ use rand::Rng;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
-type Dimension = (usize, usize);
+type Dimension = (i32, i32);
 type Origin = (f32, f32);
 
 const BOARD_DIMENSION: Dimension = (10, 20);
@@ -33,44 +33,44 @@ impl Tetromino {
     fn new(variant: TetrominoVariant) -> Self {
         match variant {
             TetrominoVariant::I => Tetromino {
-                shape: vec![(3, 1), (4, 1), (5, 1), (6, 1)],
-                origin: (4.5, 1.5),
+                shape: vec![(3, -1), (4, -1), (5, -1), (6, -1)],
+                origin: (4.5, -1.5),
                 color: Color::Cyan,
                 variant,
             },
             TetrominoVariant::J => Tetromino {
-                shape: vec![(4, 0), (5, 0), (6, 0), (6, 1)],
-                origin: (5.0, 0.0),
+                shape: vec![(4, -2), (5, -2), (6, -2), (6, -1)],
+                origin: (5.0, -2.0),
                 color: Color::Blue,
                 variant,
             },
             TetrominoVariant::L => Tetromino {
-                shape: vec![(4, 1), (5, 1), (6, 1), (6, 0)],
-                origin: (5.0, 1.0),
+                shape: vec![(4, -1), (5, -1), (6, -1), (6, -2)],
+                origin: (5.0, -1.0),
                 color: Color::White,
                 variant,
             },
             TetrominoVariant::O => Tetromino {
-                shape: vec![(4, 0), (4, 1), (5, 0), (5, 1)],
-                origin: (4.5, 0.5),
+                shape: vec![(4, -1), (4, -2), (5, -1), (5, -2)],
+                origin: (4.5, -1.5),
                 color: Color::Yellow,
                 variant,
             },
             TetrominoVariant::S => Tetromino {
-                shape: vec![(4, 1), (5, 1), (5, 0), (6, 0)],
-                origin: (5.0, 1.0),
+                shape: vec![(4, -1), (5, -1), (5, -2), (6, -2)],
+                origin: (5.0, -1.0),
                 color: Color::Green,
                 variant,
             },
             TetrominoVariant::T => Tetromino {
-                shape: vec![(4, 0), (5, 0), (5, 1), (6, 0)],
-                origin: (5.0, 0.0),
+                shape: vec![(4, -1), (5, -1), (5, -2), (6, -1)],
+                origin: (5.0, -1.0),
                 color: Color::Magenta,
                 variant,
             },
             TetrominoVariant::Z => Tetromino {
-                shape: vec![(4, 0), (5, 0), (5, 1), (6, 1)],
-                origin: (5.0, 1.0),
+                shape: vec![(4, -2), (5, -2), (5, -1), (6, -1)],
+                origin: (5.0, -2.0),
                 color: Color::Red,
                 variant,
             },
@@ -92,6 +92,7 @@ struct Game {
     score: u32,
     level: u32,
     lines: u32,
+    is_lost: bool,
 }
 
 impl Game {
@@ -102,10 +103,11 @@ impl Game {
             can_hold: true,
             ghost: None,
             bag: vec![Tetromino::new(gen()); 8],
-            placed: vec![vec![None; BOARD_DIMENSION.0]; BOARD_DIMENSION.1],
+            placed: vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize],
             score: 0,
             level,
             lines: 0,
+            is_lost: false,
         };
         game.update_ghost();
         game
@@ -120,9 +122,12 @@ impl Game {
         for (i, row) in self.placed.clone().iter().enumerate() {
             if row.iter().all(|block| block.is_some()) {
                 self.placed.remove(i);
-                self.placed.insert(0, vec![None; BOARD_DIMENSION.0]);
+                self.placed.insert(0, vec![None; BOARD_DIMENSION.0 as usize]);
                 num_cleared += 1;
             }
+        }
+        if num_cleared > 0 {
+            self.update_ghost();
         }
         self.lines += num_cleared;
         self.score += match num_cleared {
@@ -141,11 +146,12 @@ impl Game {
     fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
             position.1 + 1 == BOARD_DIMENSION.1 || self.placed.iter().enumerate().any(|(i, row)| {
-                row.iter().enumerate().any(|(j, block)| block.is_some() && j == position.0 && i == position.1 + 1)
+                row.iter().enumerate().any(|(j, block)| {
+                    block.is_some() && i == (position.1 + 1) as usize && j == position.0 as usize
+                })
             })
         })
     }
-
 
     fn update_ghost(&mut self) {
         let mut ghost = self.falling.clone();
@@ -158,9 +164,14 @@ impl Game {
     }
 
     fn shift(&mut self, direction: Direction) {
+        if self.hitting_bottom(&self.falling) {
+            self.place();
+            return
+        }
         match direction {
             Direction::Left => {
-                if self.falling.shape.iter().all(|position| position.0 > 0 && self.placed[position.1][position.0 - 1].is_none()) {
+                if self.falling.shape.iter().all(|position| position.0 > 0
+                && (position.1.is_negative() || self.placed[position.1 as usize][position.0 as usize - 1].is_none())) {
                     for position in self.falling.shape.iter_mut() {
                         position.0 -= 1;
                     }
@@ -168,7 +179,8 @@ impl Game {
                 }
             },
             Direction::Right => {
-                if self.falling.shape.iter().all(|position| position.0 < BOARD_DIMENSION.0 - 1 && self.placed[position.1][position.0 + 1].is_none()) {
+                if self.falling.shape.iter().all(|position| position.0 < BOARD_DIMENSION.0 - 1
+                && (position.1.is_negative() || self.placed[position.1 as usize][position.0 as usize + 1].is_none())) {
                     for position in self.falling.shape.iter_mut() {
                         position.0 += 1;
                     }
@@ -176,7 +188,8 @@ impl Game {
                 }
             },
             Direction::Down => {
-                if self.falling.shape.iter().all(|position| position.1 < BOARD_DIMENSION.1 - 1 && self.placed[position.1 + 1][position.0].is_none()) {
+                if self.falling.shape.iter().all(|position| position.1 < BOARD_DIMENSION.1 - 1
+                && self.placed[position.1 as usize + 1][position.0 as usize].is_none()) {
                     for position in self.falling.shape.iter_mut() {
                         position.1 += 1;
                     }
@@ -188,6 +201,10 @@ impl Game {
     }
 
     fn rotate(&mut self) {
+        if self.hitting_bottom(&self.falling) {
+            self.place();
+            return
+        }
         let mut rotated = Vec::new();
         let angle = f32::from(90.0).to_radians();
         for position in self.falling.shape.iter() {
@@ -197,7 +214,17 @@ impl Game {
             let mut yp = x * angle.sin() + y * angle.cos();
             xp += self.falling.origin.0;
             yp += self.falling.origin.1;
-            rotated.push((xp.round() as usize, yp.round() as usize));
+            rotated.push((xp.round() as i32, yp.round() as i32));
+        }
+        while rotated.iter().any(|position| position.0 < 0) {
+            for position in rotated.iter_mut() {
+                position.0 += 1;
+            }
+        }
+        while rotated.iter().any(|position| position.0 > BOARD_DIMENSION.0 - 1) {
+            for position in rotated.iter_mut() {
+                position.0 -= 1;
+            }
         }
         self.falling.shape = rotated;
         self.update_ghost();
@@ -205,7 +232,11 @@ impl Game {
 
     fn place(&mut self) {
         for position in self.falling.shape.iter() {
-            self.placed[position.1][position.0] = Some(self.falling.color);
+            if position.1.is_negative() {
+                self.is_lost = true;
+                return
+            }
+            self.placed[position.1 as usize][position.0 as usize] = Some(self.falling.color);
         }
         self.falling = self.bag.pop().unwrap();
         self.bag.push(Tetromino::new(gen()));
@@ -245,18 +276,20 @@ fn render(game: &Game) -> Result<()> {
                 .queue(MoveTo(x, y))?
                 .queue(PrintStyledContent((|| {
                     for position in game.falling.shape.iter() {
-                        if ((position.0 as u16 + 1) * 2 == x || (position.0 as u16 + 1) * 2 - 1 == x) && position.1 as u16 + 1 == y {
+                        if !position.1.is_negative() && position.1 as u16 + 1 == y
+                        && ((position.0 as u16 + 1) * 2 == x || (position.0 as u16 + 1) * 2 - 1 == x) {
                             return " ".on(game.falling.color)
                         }
                     }
                     for position in game.ghost.as_ref().unwrap().shape.iter() {
-                        if ((position.0 as u16 + 1) * 2 == x || (position.0 as u16 + 1) * 2 - 1 == x) && position.1 as u16 + 1 == y {
+                        if !position.1.is_negative() && position.1 as u16 + 1 == y
+                        && ((position.0 as u16 + 1) * 2 == x || (position.0 as u16 + 1) * 2 - 1 == x) {
                             return "░".with(game.falling.color)
                         }
                     }
                     for (i, row) in game.placed.iter().enumerate() {
                         for (j, color) in row.iter().enumerate() {
-                            if color.is_some() && ((j as u16 + 1) * 2 == x || (j as u16 + 1) * 2 - 1 == x) && i as u16 + 1 == y {
+                            if color.is_some() && i as u16 + 1 == y && ((j as u16 + 1) * 2 == x || (j as u16 + 1) * 2 - 1 == x) {
                                 return " ".on(color.unwrap())
                             }
                         }
@@ -272,9 +305,9 @@ fn render(game: &Game) -> Result<()> {
         .queue(Print("        "))?;
     for position in game.bag.last().unwrap().shape.iter() {
         stdout
-            .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 2, position.1 as u16 + 4))?
+            .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 2, (position.1 + 2) as u16 + 4))?
             .queue(PrintStyledContent(" ".on(game.bag.last().unwrap().color)))?
-            .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 1, position.1 as u16 + 4))?
+            .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 1, (position.1 + 2) as u16 + 4))?
             .queue(PrintStyledContent(" ".on(game.bag.last().unwrap().color)))?;
     }
     if game.holding.is_some() {
@@ -285,9 +318,9 @@ fn render(game: &Game) -> Result<()> {
             .queue(Print("        "))?;
         for position in game.holding.as_ref().unwrap().shape.iter() {
             stdout
-                .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 2, position.1 as u16 + 9))?
+                .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 2, (position.1 + 2) as u16 + 9))?
                 .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?
-                .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 1, position.1 as u16 + 9))?
+                .queue(MoveTo((position.0 as u16 - 3) * 2 + WIDTH + 1, (position.1 + 2) as u16 + 9))?
                 .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?;
         }
     }
@@ -368,10 +401,21 @@ fn main() -> Result<()> {
     let loop_frequency = game.level;
     let sleep_duration = Duration::from_secs(1) / loop_frequency;
 
+    macro_rules! quit {
+        () => {{
+            disable_raw_mode()?;
+            execute!(stdout, Show, Clear(ClearType::All))?;
+            println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.score, game.level, game.lines);
+            break
+        }};
+    }
+
     Ok(loop {
         let loop_start = Instant::now();
 
         render(game)?;
+
+        if game.is_lost { quit!() }
 
         let work_duration = loop_start.elapsed();
 
@@ -385,17 +429,12 @@ fn main() -> Result<()> {
                         KeyCode::Char('d') | KeyCode::Char('D') | KeyCode::Right => game.shift(Direction::Right),
                         KeyCode::Char('c') | KeyCode::Char('C') => game.hold(),
                         KeyCode::Char(' ') => game.drop(),
-                        KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
-                            disable_raw_mode()?;
-                            execute!(stdout, Show, Clear(ClearType::All))?;
-                            println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.score, game.level, game.lines);
-                            break
-                        },
+                        KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => quit!(),
                         _ => continue,
                     };
                 }
             }
-            game.tick();
         }
+        game.tick();
     })
 }
