@@ -167,11 +167,7 @@ impl Game {
 
     fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
-            position.1 == BOARD_DIMENSION.1 - 1 || self.stack.iter().enumerate().any(|(i, row)| {
-                row.iter().enumerate().any(|(j, block)| {
-                    block.is_some() && i == (position.1 + 1) as usize && j == position.0 as usize
-                })
-            })
+            position.1 == BOARD_DIMENSION.1 - 1 || self.stack[(position.1 + 1) as usize][position.0 as usize].is_some()
         })
     }
 
