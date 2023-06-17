@@ -33,44 +33,44 @@ impl Tetromino {
     fn new(variant: TetrominoVariant) -> Self {
         match variant {
             TetrominoVariant::I => Tetromino {
-                shape: vec![(3, -1), (4, -1), (5, -1), (6, -1)],
-                origin: (4.5, -1.5),
+                shape: vec![(3, 1), (4, 1), (5, 1), (6, 1)],
+                origin: (4.5, 1.5),
                 color: Color::Cyan,
                 variant,
             },
             TetrominoVariant::J => Tetromino {
-                shape: vec![(4, -2), (5, -2), (6, -2), (6, -1)],
-                origin: (5.0, -2.0),
+                shape: vec![(4, 1), (5, 1), (6, 1), (6, 0)],
+                origin: (5.0, 1.0),
                 color: Color::Blue,
                 variant,
             },
             TetrominoVariant::L => Tetromino {
-                shape: vec![(4, -1), (5, -1), (6, -1), (6, -2)],
-                origin: (5.0, -1.0),
+                shape: vec![(4, 0), (5, 0), (6, 0), (6, 1)],
+                origin: (5.0, 0.0),
                 color: Color::White,
                 variant,
             },
             TetrominoVariant::O => Tetromino {
-                shape: vec![(4, -1), (4, -2), (5, -1), (5, -2)],
-                origin: (4.5, -1.5),
+                shape: vec![(4, 0), (4, 1), (5, 0), (5, 1)],
+                origin: (4.5, 0.5),
                 color: Color::Yellow,
                 variant,
             },
             TetrominoVariant::S => Tetromino {
-                shape: vec![(4, -1), (5, -1), (5, -2), (6, -2)],
-                origin: (5.0, -1.0),
+                shape: vec![(4, 1), (5, 1), (5, 0), (6, 0)],
+                origin: (5.0, 1.0),
                 color: Color::Green,
                 variant,
             },
             TetrominoVariant::T => Tetromino {
-                shape: vec![(4, -1), (5, -1), (5, -2), (6, -1)],
-                origin: (5.0, -1.0),
+                shape: vec![(4, 1), (5, 1), (5, 0), (6, 1)],
+                origin: (5.0, 1.0),
                 color: Color::Magenta,
                 variant,
             },
             TetrominoVariant::Z => Tetromino {
-                shape: vec![(4, -2), (5, -2), (5, -1), (6, -1)],
-                origin: (5.0, -2.0),
+                shape: vec![(4, 0), (5, 0), (5, 1), (6, 1)],
+                origin: (5.0, 1.0),
                 color: Color::Red,
                 variant,
             },
@@ -228,7 +228,15 @@ impl Game {
             }
             self.placed[position.1 as usize][position.0 as usize] = Some(self.falling.color);
         }
-        self.falling = self.bag.pop().unwrap();
+        let mut falling = self.bag.pop().unwrap();
+        for i in 0..2 {
+            if self.placed[i].iter().any(|block| block.is_some()) {
+                for position in falling.shape.iter_mut() {
+                    position.1 -= 1;
+                }
+            }
+        }
+        self.falling = falling;
         self.bag.push(Tetromino::new(gen()));
         self.can_hold = true;
         self.update_ghost();
@@ -268,7 +276,7 @@ fn render(game: &Game) -> Result<()> {
                     for position in game.falling.shape.iter() {
                         if !position.1.is_negative() && (position.1 + 1) as u16 == y
                         && ((position.0 + 1) as u16 * 2 == x || (position.0 + 1) as u16 * 2 - 1 == x) {
-                            return if game.placing { "▓".with(game.falling.color) } else { " ".on(game.falling.color) }
+                            return " ".on(game.falling.color);
                         }
                     }
                     for position in game.ghost.as_ref().unwrap().shape.iter() {
@@ -295,9 +303,9 @@ fn render(game: &Game) -> Result<()> {
         .queue(Print("        "))?;
     for position in game.bag.last().unwrap().shape.iter() {
         stdout
-            .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 2, (position.1 + 2) as u16 + 4))?
+            .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 2, position.1 as u16 + 4))?
             .queue(PrintStyledContent(" ".on(game.bag.last().unwrap().color)))?
-            .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 1, (position.1 + 2) as u16 + 4))?
+            .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 1, position.1 as u16 + 4))?
             .queue(PrintStyledContent(" ".on(game.bag.last().unwrap().color)))?;
     }
     if game.holding.is_some() {
@@ -308,9 +316,9 @@ fn render(game: &Game) -> Result<()> {
             .queue(Print("        "))?;
         for position in game.holding.as_ref().unwrap().shape.iter() {
             stdout
-                .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 2, (position.1 + 2) as u16 + 9))?
+                .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 2, position.1 as u16 + 9))?
                 .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?
-                .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 1, (position.1 + 2) as u16 + 9))?
+                .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 1, position.1 as u16 + 9))?
                 .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?;
         }
     }
