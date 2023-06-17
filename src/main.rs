@@ -132,12 +132,22 @@ impl Game {
             self.update_ghost();
             self.level = self.start_level + (self.lines / 10);
         }
-        self.score += match num_cleared {
-            1 => self.level * 100,
-            2 => self.level * 300,
-            3 => self.level * 500,
-            4 => self.level * 800,
-            _ => 0,
+        self.score += if self.placed.iter().all(|row| row.iter().all(|block| block.is_none())) {
+            match num_cleared {
+                1 => self.level * 800,
+                2 => self.level * 1200,
+                3 => self.level * 1800,
+                4 => self.level * 2000,
+                _ => 0,
+            }
+        } else {
+            match num_cleared {
+                1 => self.level * 100,
+                2 => self.level * 300,
+                3 => self.level * 500,
+                4 => self.level * 800,
+                _ => 0,
+            }
         };
         self.shift(Direction::Down);
     }
@@ -245,11 +255,11 @@ impl Game {
         self.update_ghost();
     }
 
-    fn drop(&mut self) {
+    fn hard_drop(&mut self) {
         while !self.hitting_bottom(&self.falling) {
             for position in self.falling.shape.iter_mut() {
                 position.1 += 1;
-                self.score += 2;
+                self.score += self.level * 2;
             }
         }
         self.place();
@@ -280,7 +290,7 @@ fn render(game: &Game) -> Result<()> {
                     for position in game.falling.shape.iter() {
                         if !position.1.is_negative() && (position.1 + 1) as u16 == y
                         && ((position.0 + 1) as u16 * 2 == x || (position.0 + 1) as u16 * 2 - 1 == x) {
-                            return " ".on(game.falling.color);
+                            return if game.placing { "▓".with(game.falling.color) } else { " ".on(game.falling.color) }
                         }
                     }
                     for position in game.ghost.as_ref().unwrap().shape.iter() {
@@ -446,7 +456,7 @@ fn main() -> Result<()> {
                             KeyCode::Char('s') | KeyCode::Char('S') | KeyCode::Down => game.shift(Direction::Down),
                             KeyCode::Char('d') | KeyCode::Char('D') | KeyCode::Right => game.shift(Direction::Right),
                             KeyCode::Char('c') | KeyCode::Char('C') => game.hold(),
-                            KeyCode::Char(' ') => game.drop(),
+                            KeyCode::Char(' ') => game.hard_drop(),
                             KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => quit!(),
                             _ => continue,
                         };
