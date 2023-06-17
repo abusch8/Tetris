@@ -6,9 +6,10 @@ use crossterm::{
     terminal::{Clear, ClearType, SetTitle, enable_raw_mode, disable_raw_mode},
     event::{Event, KeyCode, read, poll},
 };
-use rand::Rng;
+use rand::{thread_rng, seq::SliceRandom};
 use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 type Dimension = (i32, i32);
 type Origin = (f32, f32);
@@ -18,7 +19,7 @@ const BOARD_DIMENSION: Dimension = (10, 20);
 #[derive(Clone, Copy, FromPrimitive)]
 enum Direction { Left, Right, Down }
 
-#[derive(Clone, Copy, FromPrimitive, PartialEq)]
+#[derive(Clone, Copy, EnumIter, FromPrimitive, PartialEq)]
 enum TetrominoVariant { I, J, L, O, S, T, Z }
 
 #[derive(Clone)]
@@ -78,16 +79,19 @@ impl Tetromino {
     }
 }
 
-fn gen() -> TetrominoVariant {
-    TetrominoVariant::from_i32(rand::thread_rng().gen_range(0..7)).unwrap()
+fn rand_bag_gen() -> Vec<Tetromino> {
+    let mut bag = TetrominoVariant::iter().map(|variant| Tetromino::new(variant)).collect::<Vec<Tetromino>>();
+    bag.shuffle(&mut thread_rng());
+    bag
 }
 
 struct Game {
     falling: Tetromino,
     holding: Option<Tetromino>,
     ghost: Option<Tetromino>,
+    next: Tetromino,
     bag: Vec<Tetromino>,
-    placed: Vec<Vec<Option<Color>>>,
+    stack: Vec<Vec<Option<Color>>>,
     score: u32,
     level: u32,
     start_level: u32,
@@ -99,12 +103,14 @@ struct Game {
 
 impl Game {
     fn start(start_level: u32) -> Self {
+        let mut bag = rand_bag_gen();
         let mut game = Game {
-            falling: Tetromino::new(gen()),
+            falling: bag.pop().unwrap(),
             holding: None,
             ghost: None,
-            bag: vec![Tetromino::new(gen()); 8],
-            placed: vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize],
+            next: bag.pop().unwrap(),
+            bag,
+            stack: vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize],
             start_level,
             score: 0,
             level: start_level,
@@ -120,10 +126,10 @@ impl Game {
     fn tick(&mut self) {
         if self.placing { return }
         let mut num_cleared = 0;
-        for (i, row) in self.placed.clone().iter().enumerate() {
+        for (i, row) in self.stack.clone().iter().enumerate() {
             if row.iter().all(|block| block.is_some()) {
-                self.placed.remove(i);
-                self.placed.insert(0, vec![None; BOARD_DIMENSION.0 as usize]);
+                self.stack.remove(i);
+                self.stack.insert(0, vec![None; BOARD_DIMENSION.0 as usize]);
                 num_cleared += 1;
             }
         }
@@ -132,7 +138,7 @@ impl Game {
             self.update_ghost();
             self.level = self.start_level + (self.lines / 10);
         }
-        self.score += if self.placed.iter().all(|row| row.iter().all(|block| block.is_none())) {
+        self.score += if self.stack.iter().all(|row| row.iter().all(|block| block.is_none())) {
             match num_cleared {
                 1 => self.level * 800,
                 2 => self.level * 1200,
@@ -152,9 +158,16 @@ impl Game {
         self.shift(Direction::Down);
     }
 
+    fn get_next(&mut self) -> Tetromino {
+        let next = self.next.clone();
+        if self.bag.is_empty() { self.bag = rand_bag_gen() }
+        self.next = self.bag.pop().unwrap();
+        next
+    }
+
     fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
-            position.1 == BOARD_DIMENSION.1 - 1 || self.placed.iter().enumerate().any(|(i, row)| {
+            position.1 == BOARD_DIMENSION.1 - 1 || self.stack.iter().enumerate().any(|(i, row)| {
                 row.iter().enumerate().any(|(j, block)| {
                     block.is_some() && i == (position.1 + 1) as usize && j == position.0 as usize
                 })
@@ -176,7 +189,7 @@ impl Game {
         match direction {
             Direction::Left => {
                 if self.falling.shape.iter().all(|position| position.0 > 0
-                && (position.1.is_negative() || self.placed[position.1 as usize][(position.0 - 1) as usize].is_none())) {
+                && (position.1.is_negative() || self.stack[position.1 as usize][(position.0 - 1) as usize].is_none())) {
                     for position in self.falling.shape.iter_mut() {
                         position.0 -= 1;
                     }
@@ -186,7 +199,7 @@ impl Game {
             },
             Direction::Right => {
                 if self.falling.shape.iter().all(|position| position.0 < BOARD_DIMENSION.0 - 1
-                && (position.1.is_negative() || self.placed[position.1 as usize][(position.0 + 1) as usize].is_none())) {
+                && (position.1.is_negative() || self.stack[position.1 as usize][(position.0 + 1) as usize].is_none())) {
                     for position in self.falling.shape.iter_mut() {
                         position.0 += 1;
                     }
@@ -230,6 +243,9 @@ impl Game {
             }
         }
         self.falling.shape = rotated;
+        if !self.hitting_bottom(&self.falling) {
+            self.placing = false;
+        }
         self.update_ghost();
     }
 
@@ -239,27 +255,33 @@ impl Game {
                 self.end = true;
                 return
             }
-            self.placed[position.1 as usize][position.0 as usize] = Some(self.falling.color);
+            self.stack[position.1 as usize][position.0 as usize] = Some(self.falling.color);
         }
-        let mut falling = self.bag.pop().unwrap();
+        let mut falling = self.get_next();
         for i in 0..2 {
-            if self.placed[i].iter().any(|block| block.is_some()) {
+            if self.stack[i].iter().any(|block| block.is_some()) {
                 for position in falling.shape.iter_mut() {
                     position.1 -= 1;
                 }
             }
         }
         self.falling = falling;
-        self.bag.push(Tetromino::new(gen()));
         self.can_hold = true;
         self.update_ghost();
+    }
+
+    fn soft_drop(&mut self) {
+        self.shift(Direction::Down);
+        if !self.hitting_bottom(&self.falling) {
+            self.score += 1;
+        }
     }
 
     fn hard_drop(&mut self) {
         while !self.hitting_bottom(&self.falling) {
             for position in self.falling.shape.iter_mut() {
                 position.1 += 1;
-                self.score += self.level * 2;
+                self.score += 2;
             }
         }
         self.place();
@@ -267,7 +289,7 @@ impl Game {
 
     fn hold(&mut self) {
         if self.can_hold {
-            let swap = self.holding.clone().unwrap_or(Tetromino::new(gen()));
+            let swap = self.holding.clone().unwrap_or(self.get_next());
             self.holding = Some(Tetromino::new(self.falling.variant));
             self.falling = swap;
             self.can_hold = false;
@@ -299,7 +321,7 @@ fn render(game: &Game) -> Result<()> {
                             return "░".with(game.falling.color)
                         }
                     }
-                    for (i, row) in game.placed.iter().enumerate() {
+                    for (i, row) in game.stack.iter().enumerate() {
                         for (j, color) in row.iter().enumerate() {
                             if color.is_some() && (i + 1) as u16 == y && ((j + 1) as u16 * 2 == x || (j + 1) as u16 * 2 - 1 == x) {
                                 return " ".on(color.unwrap())
@@ -315,12 +337,12 @@ fn render(game: &Game) -> Result<()> {
         .queue(Print("        "))?
         .queue(MoveTo(WIDTH + 1, 5))?
         .queue(Print("        "))?;
-    for position in game.bag.last().unwrap().shape.iter() {
+    for position in game.next.shape.iter() {
         stdout
             .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 2, position.1 as u16 + 4))?
-            .queue(PrintStyledContent(" ".on(game.bag.last().unwrap().color)))?
+            .queue(PrintStyledContent(" ".on(game.next.color)))?
             .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 1, position.1 as u16 + 4))?
-            .queue(PrintStyledContent(" ".on(game.bag.last().unwrap().color)))?;
+            .queue(PrintStyledContent(" ".on(game.next.color)))?;
     }
     if game.holding.is_some() {
         stdout
@@ -414,11 +436,11 @@ fn main() -> Result<()> {
 
     let tick_frequency = game.level * 2;
 
-    let sleep_duration_main = Duration::from_secs(1) / tick_frequency;
-    let sleep_duration_cancel_place = Duration::from_millis(500);
+    let tick_duration = Duration::from_secs(1) / tick_frequency;
+    let lock_delay_duration = Duration::from_millis(500);
 
-    let mut loop_start_main = Instant::now();
-    let mut loop_start_cancel_place: Option<Instant> = None;
+    let mut tick_start = Instant::now();
+    let mut lock_delay_start: Option<Instant> = None;
 
     macro_rules! quit {
         () => {{
@@ -433,27 +455,27 @@ fn main() -> Result<()> {
         if game.end { quit!() }
 
         if game.placing {
-            match loop_start_cancel_place {
+            match lock_delay_start {
                 Some(remaining_duration) => {
-                    if sleep_duration_cancel_place.checked_sub(remaining_duration.elapsed()).is_none() {
+                    if lock_delay_duration.checked_sub(remaining_duration.elapsed()).is_none() {
                         game.place();
                         game.placing = false;
                     }
                 },
-                None => loop_start_cancel_place = Some(Instant::now()),
+                None => lock_delay_start = Some(Instant::now()),
             }
         } else {
-            loop_start_cancel_place = None;
+            lock_delay_start = None;
         }
 
-        match sleep_duration_main.checked_sub(loop_start_main.elapsed()) {
+        match tick_duration.checked_sub(tick_start.elapsed()) {
             Some(remaining_duration) => {
                 if poll(remaining_duration)? {
                     if let Event::Key(event) = read()? {
                         match event.code {
                             KeyCode::Char('w') | KeyCode::Char('W') | KeyCode::Up => game.rotate(),
                             KeyCode::Char('a') | KeyCode::Char('A') | KeyCode::Left => game.shift(Direction::Left),
-                            KeyCode::Char('s') | KeyCode::Char('S') | KeyCode::Down => game.shift(Direction::Down),
+                            KeyCode::Char('s') | KeyCode::Char('S') | KeyCode::Down => game.soft_drop(),
                             KeyCode::Char('d') | KeyCode::Char('D') | KeyCode::Right => game.shift(Direction::Right),
                             KeyCode::Char('c') | KeyCode::Char('C') => game.hold(),
                             KeyCode::Char(' ') => game.hard_drop(),
@@ -465,7 +487,7 @@ fn main() -> Result<()> {
             },
             None => {
                 game.tick();
-                loop_start_main = Instant::now();
+                tick_start = Instant::now();
             },
         }
         render(game)?;
