@@ -1,4 +1,4 @@
-use std::{io::{stdout, Write}, time::{Instant, Duration}, env, thread};
+use std::{io::{stdout, Write}, time::{Instant, Duration}, env, thread::sleep};
 use crossterm::{
     Result, QueueableCommand, execute,
     style::{PrintStyledContent, StyledContent, Color, Stylize, ContentStyle, Print},
@@ -136,7 +136,7 @@ impl Game {
         self.lines += num_cleared;
         if num_cleared > 0 {
             self.update_ghost();
-            self.level = self.start_level + (self.lines / 10);
+            self.level = self.start_level + self.lines / 10;
         }
         self.score += if self.stack.iter().all(|row| row.iter().all(|block| block.is_none())) {
             match num_cleared {
@@ -285,7 +285,7 @@ impl Game {
 
     fn hold(&mut self) {
         if self.can_hold {
-            let swap = self.holding.clone().unwrap_or(self.get_next());
+            let swap = self.holding.clone().unwrap_or_else(|| self.get_next());
             self.holding = Some(Tetromino::new(self.falling.variant));
             self.falling = swap;
             self.can_hold = false;
@@ -402,12 +402,6 @@ fn draw(game: &Game) -> Result<()> {
         .queue(Print("NEXT:"))?
         .queue(MoveTo(WIDTH + 1, 7))?
         .queue(Print("HOLDING:"))?
-        .queue(MoveTo(WIDTH + 1, 12))?
-        .queue(Print(format!("SCORE: {}", game.score)))?
-        .queue(MoveTo(WIDTH + 1, 13))?
-        .queue(Print(format!("LEVEL: {}", game.level)))?
-        .queue(MoveTo(WIDTH + 1, 14))?
-        .queue(Print(format!("LINES: {}", game.lines)))?
         .queue(MoveTo(0, 0))?
         .flush()?;
 
@@ -487,6 +481,6 @@ fn main() -> Result<()> {
             },
         }
         render(game)?;
-        thread::sleep(Duration::from_millis(1));
+        sleep(Duration::from_millis(1));
     })
 }
