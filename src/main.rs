@@ -90,6 +90,7 @@ struct Game {
     placed: Vec<Vec<Option<Color>>>,
     score: u32,
     level: u32,
+    start_level: u32,
     lines: u32,
     can_hold: bool,
     placing: bool,
@@ -97,15 +98,16 @@ struct Game {
 }
 
 impl Game {
-    fn start(level: u32) -> Self {
+    fn start(start_level: u32) -> Self {
         let mut game = Game {
             falling: Tetromino::new(gen()),
             holding: None,
             ghost: None,
             bag: vec![Tetromino::new(gen()); 8],
             placed: vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize],
+            start_level,
             score: 0,
-            level,
+            level: start_level,
             lines: 0,
             can_hold: true,
             placing: false,
@@ -125,10 +127,11 @@ impl Game {
                 num_cleared += 1;
             }
         }
+        self.lines += num_cleared;
         if num_cleared > 0 {
             self.update_ghost();
+            self.level = self.start_level + (self.lines / 10);
         }
-        self.lines += num_cleared;
         self.score += match num_cleared {
             1 => self.level * 100,
             2 => self.level * 300,
@@ -246,6 +249,7 @@ impl Game {
         while !self.hitting_bottom(&self.falling) {
             for position in self.falling.shape.iter_mut() {
                 position.1 += 1;
+                self.score += 2;
             }
         }
         self.place();
@@ -378,6 +382,8 @@ fn draw(game: &Game) -> Result<()> {
         .queue(Print(format!("LINES: {}", game.lines)))?
         .queue(MoveTo(0, 0))?
         .flush()?;
+
+    render(game)?;
 
     Ok(())
 }
