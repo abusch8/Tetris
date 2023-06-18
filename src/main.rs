@@ -11,6 +11,10 @@ use num_derive::FromPrimitive;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
+use crate::debug::*;
+
+mod debug;
+
 type Dimension = (i32, i32);
 type Origin = (f32, f32);
 
@@ -92,10 +96,11 @@ struct Game {
     next: Tetromino,
     bag: Vec<Tetromino>,
     stack: Vec<Vec<Option<Color>>>,
+    start_level: u32,
     score: u32,
     level: u32,
-    start_level: u32,
     lines: u32,
+    num_lock_resets: u32,
     can_hold: bool,
     placing: bool,
     end: bool,
@@ -115,6 +120,7 @@ impl Game {
             score: 0,
             level: start_level,
             lines: 0,
+            num_lock_resets: 0,
             can_hold: true,
             placing: false,
             end: false,
@@ -181,6 +187,14 @@ impl Game {
         self.ghost = Some(ghost);
     }
 
+    fn reset_lock(&mut self) {
+        if self.placing {
+            self.num_lock_resets += 1;
+            self.placing = false;
+        }
+        debug_print!("num_locks_reset: {}", self.num_lock_resets);
+    }
+
     fn shift(&mut self, direction: Direction) {
         match direction {
             Direction::Left => {
@@ -190,7 +204,7 @@ impl Game {
                         position.0 -= 1;
                     }
                     self.falling.origin.0 -= 1.0;
-                    self.placing = false;
+                    self.reset_lock();
                 }
             },
             Direction::Right => {
@@ -200,7 +214,7 @@ impl Game {
                         position.0 += 1;
                     }
                     self.falling.origin.0 += 1.0;
-                    self.placing = false;
+                    self.reset_lock();
                 }
             },
             Direction::Down => {
@@ -209,7 +223,6 @@ impl Game {
                         position.1 += 1;
                     }
                     self.falling.origin.1 += 1.0;
-                    self.placing = false;
                 } else {
                     self.placing = true;
                 }
@@ -413,6 +426,8 @@ fn draw(game: &Game) -> Result<()> {
 fn main() -> Result<()> {
     let mut stdout = stdout();
 
+    let debug_window = DebugWindow::new();
+
     let args = env::args().collect::<Vec<String>>();
     let level = if args.len() == 2 { args[1].parse::<u32>().unwrap() } else { 1 };
 
@@ -434,6 +449,7 @@ fn main() -> Result<()> {
 
     macro_rules! quit {
         () => {{
+            debug_window.close();
             disable_raw_mode()?;
             execute!(stdout, Show, Clear(ClearType::All))?;
             println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.score, game.level, game.lines);
@@ -447,9 +463,10 @@ fn main() -> Result<()> {
         if game.placing {
             match lock_delay_start {
                 Some(remaining_duration) => {
-                    if lock_delay_duration.checked_sub(remaining_duration.elapsed()).is_none() {
+                    if lock_delay_duration.checked_sub(remaining_duration.elapsed()).is_none() || game.num_lock_resets == 15 {
                         game.place();
                         game.placing = false;
+                        game.num_lock_resets = 0;
                     }
                 },
                 None => lock_delay_start = Some(Instant::now()),
