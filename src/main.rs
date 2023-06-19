@@ -1,4 +1,4 @@
-use std::{io::{stdout, Write}, time::{Instant, Duration}, env, thread::sleep};
+use std::{io::{stdout, Write}, time::{Instant, Duration}, env, thread::sleep, mem::replace};
 use crossterm::{
     Result, QueueableCommand, execute,
     style::{PrintStyledContent, StyledContent, Color, Stylize, ContentStyle, Print},
@@ -142,16 +142,25 @@ impl Game {
         game
     }
 
-    fn tick(&mut self) {
-        if self.locking { return }
+    fn clear(&mut self) -> u32 {
+        let old_stack = replace(&mut self.stack, Vec::new());
         let mut num_cleared = 0;
-        for (i, row) in self.stack.clone().iter().enumerate() {
+        for row in old_stack.into_iter() {
             if row.iter().all(|block| block.is_some()) {
-                self.stack.remove(i);
-                self.stack.push(vec![None; BOARD_DIMENSION.0 as usize]);
                 num_cleared += 1;
+            } else {
+                self.stack.push(row);
             }
         }
+        for _ in 0..num_cleared {
+            self.stack.push(vec![None; BOARD_DIMENSION.0 as usize]);
+        }
+        num_cleared
+    }
+
+    fn tick(&mut self) {
+        if self.locking { return }
+        let num_cleared = self.clear();
         self.lines += num_cleared;
         if num_cleared > 0 {
             self.update_ghost();
@@ -473,7 +482,7 @@ fn draw(game: &Game) -> Result<()> {
 fn main() -> Result<()> {
     let mut stdout = stdout();
 
-    let debug_window = DebugWindow::new();
+    // let debug_window = DebugWindow::new();
 
     let args = env::args().collect::<Vec<String>>();
     let level = if args.len() == 2 { args[1].parse::<u32>().unwrap() } else { 1 };
@@ -496,7 +505,7 @@ fn main() -> Result<()> {
 
     macro_rules! quit {
         () => {{
-            debug_window.close();
+            // debug_window.close();
             disable_raw_mode()?;
             execute!(stdout, Show, Clear(ClearType::All))?;
             println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.score, game.level, game.lines);
