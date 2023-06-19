@@ -8,6 +8,7 @@ use crossterm::{
 };
 use rand::{thread_rng, seq::SliceRandom};
 use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -16,20 +17,27 @@ use crate::debug::*;
 mod debug;
 
 type Dimension = (i32, i32);
-type Origin = (f32, f32);
+type Shape = Vec<Dimension>;
 
 const BOARD_DIMENSION: Dimension = (10, 20);
 
 #[derive(Clone, Copy, FromPrimitive)]
-enum Direction { Left, Right, Down }
+enum ShiftDirection { Left, Right, Down }
 
-#[derive(Clone, Copy, EnumIter, FromPrimitive, PartialEq)]
+#[derive(PartialEq, Debug)]
+enum RotationDirection { Clockwise, CounterClockwise }
+
+#[derive(Clone, Copy, FromPrimitive, PartialEq, Debug)]
+enum CardinalDirection { North, East, South, West }
+
+#[derive(Clone, Copy, EnumIter, FromPrimitive, PartialEq, Debug)]
 enum TetrominoVariant { I, J, L, O, S, T, Z }
 
 #[derive(Clone)]
 struct Tetromino {
-    shape: Vec<Dimension>,
-    origin: Origin,
+    shape: Shape,
+    center: Dimension,
+    direction: CardinalDirection,
     color: Color,
     variant: TetrominoVariant,
 }
@@ -38,44 +46,51 @@ impl Tetromino {
     fn new(variant: TetrominoVariant) -> Self {
         match variant {
             TetrominoVariant::I => Tetromino {
-                shape: vec![(3, 1), (4, 1), (5, 1), (6, 1)],
-                origin: (4.5, 1.5),
+                shape: vec![(3, 18), (4, 18), (5, 18), (6, 18)],
+                center: (4, 18),
+                direction: CardinalDirection::North,
                 color: Color::Cyan,
                 variant,
             },
             TetrominoVariant::J => Tetromino {
-                shape: vec![(4, 1), (5, 1), (6, 1), (6, 0)],
-                origin: (5.0, 1.0),
+                shape: vec![(4, 19), (4, 18), (5, 18), (6, 18)],
+                center: (5, 18),
+                direction: CardinalDirection::North,
                 color: Color::Blue,
                 variant,
             },
             TetrominoVariant::L => Tetromino {
-                shape: vec![(4, 0), (5, 0), (6, 0), (6, 1)],
-                origin: (5.0, 0.0),
+                shape: vec![(4, 18), (5, 18), (6, 18), (6, 19)],
+                center: (5, 18),
+                direction: CardinalDirection::North,
                 color: Color::White,
                 variant,
             },
             TetrominoVariant::O => Tetromino {
-                shape: vec![(4, 0), (4, 1), (5, 0), (5, 1)],
-                origin: (4.5, 0.5),
+                shape: vec![(4, 18), (4, 19), (5, 18), (5, 19)],
+                center: (4, 18),
+                direction: CardinalDirection::North,
                 color: Color::Yellow,
                 variant,
             },
             TetrominoVariant::S => Tetromino {
-                shape: vec![(4, 1), (5, 1), (5, 0), (6, 0)],
-                origin: (5.0, 1.0),
+                shape: vec![(4, 18), (5, 18), (5, 19), (6, 19)],
+                center: (5, 18),
+                direction: CardinalDirection::North,
                 color: Color::Green,
                 variant,
             },
             TetrominoVariant::T => Tetromino {
-                shape: vec![(4, 1), (5, 1), (5, 0), (6, 1)],
-                origin: (5.0, 1.0),
+                shape: vec![(4, 18), (5, 18), (5, 19), (6, 18)],
+                center: (5, 18),
+                direction: CardinalDirection::North,
                 color: Color::Magenta,
                 variant,
             },
             TetrominoVariant::Z => Tetromino {
-                shape: vec![(4, 0), (5, 0), (5, 1), (6, 1)],
-                origin: (5.0, 1.0),
+                shape: vec![(4, 19), (5, 19), (5, 18), (6, 18)],
+                center: (5, 18),
+                direction: CardinalDirection::North,
                 color: Color::Red,
                 variant,
             },
@@ -100,9 +115,8 @@ struct Game {
     score: u32,
     level: u32,
     lines: u32,
-    num_lock_resets: u32,
     can_hold: bool,
-    placing: bool,
+    locking: bool,
     end: bool,
 }
 
@@ -120,9 +134,8 @@ impl Game {
             score: 0,
             level: start_level,
             lines: 0,
-            num_lock_resets: 0,
             can_hold: true,
-            placing: false,
+            locking: false,
             end: false,
         };
         game.update_ghost();
@@ -130,12 +143,12 @@ impl Game {
     }
 
     fn tick(&mut self) {
-        if self.placing { return }
+        if self.locking { return }
         let mut num_cleared = 0;
         for (i, row) in self.stack.clone().iter().enumerate() {
             if row.iter().all(|block| block.is_some()) {
                 self.stack.remove(i);
-                self.stack.insert(0, vec![None; BOARD_DIMENSION.0 as usize]);
+                self.stack.push(vec![None; BOARD_DIMENSION.0 as usize]);
                 num_cleared += 1;
             }
         }
@@ -161,7 +174,7 @@ impl Game {
                 _ => 0,
             }
         };
-        self.shift(Direction::Down);
+        self.shift(ShiftDirection::Down);
     }
 
     fn get_next(&mut self) -> Tetromino {
@@ -173,7 +186,7 @@ impl Game {
 
     fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
-            position.1 == BOARD_DIMENSION.1 - 1 || self.stack[(position.1 + 1) as usize][position.0 as usize].is_some()
+            position.1 == 0 || self.stack[(position.1 - 1) as usize][position.0 as usize].is_some()
         })
     }
 
@@ -181,84 +194,118 @@ impl Game {
         let mut ghost = self.falling.clone();
         while !self.hitting_bottom(&ghost) {
             for position in ghost.shape.iter_mut() {
-                position.1 += 1;
+                position.1 -= 1;
             }
         }
         self.ghost = Some(ghost);
     }
 
-    fn reset_lock(&mut self) {
-        if self.placing {
-            self.num_lock_resets += 1;
-            self.placing = false;
-        }
-        debug_print!("num_locks_reset: {}", self.num_lock_resets);
-    }
-
-    fn shift(&mut self, direction: Direction) {
+    fn shift(&mut self, direction: ShiftDirection) {
         match direction {
-            Direction::Left => {
+            ShiftDirection::Left => {
                 if self.falling.shape.iter().all(|position| position.0 > 0
                 && (position.1.is_negative() || self.stack[position.1 as usize][(position.0 - 1) as usize].is_none())) {
                     for position in self.falling.shape.iter_mut() {
                         position.0 -= 1;
                     }
-                    self.falling.origin.0 -= 1.0;
-                    self.reset_lock();
+                    self.falling.center.0 -= 1;
+                    self.locking = false;
                 }
             },
-            Direction::Right => {
+            ShiftDirection::Right => {
                 if self.falling.shape.iter().all(|position| position.0 < BOARD_DIMENSION.0 - 1
                 && (position.1.is_negative() || self.stack[position.1 as usize][(position.0 + 1) as usize].is_none())) {
                     for position in self.falling.shape.iter_mut() {
                         position.0 += 1;
                     }
-                    self.falling.origin.0 += 1.0;
-                    self.reset_lock();
+                    self.falling.center.0 += 1;
+                    self.locking = false;
                 }
             },
-            Direction::Down => {
+            ShiftDirection::Down => {
                 if !self.hitting_bottom(&self.falling) {
                     for position in self.falling.shape.iter_mut() {
-                        position.1 += 1;
+                        position.1 -= 1;
                     }
-                    self.falling.origin.1 += 1.0;
+                    self.falling.center.1 -= 1;
                 } else {
-                    self.placing = true;
+                    self.locking = true;
                 }
             },
         }
         self.update_ghost();
     }
 
-    fn rotate(&mut self) {
-        let mut rotated = Vec::new();
-        let angle = f32::from(90.0).to_radians();
-        for position in self.falling.shape.iter() {
-            let x = position.0 as f32 - self.falling.origin.0;
-            let y = position.1 as f32 - self.falling.origin.1;
-            let xp = (x * angle.cos() - y * angle.sin()) + self.falling.origin.0;
-            let yp = (x * angle.sin() + y * angle.cos()) + self.falling.origin.1;
-            rotated.push((xp.round() as i32, yp.round() as i32));
-        }
-        while rotated.iter().any(|position| position.0 < 0) {
-            for position in rotated.iter_mut() {
-                position.0 += 1;
-            }
-        }
-        while rotated.iter().any(|position| position.0 > BOARD_DIMENSION.0 - 1) {
-            for position in rotated.iter_mut() {
-                position.0 -= 1;
-            }
-        }
-        self.falling.shape = rotated;
-        if !self.hitting_bottom(&self.falling) {
-            self.placing = false;
-        }
-        self.update_ghost();
+    fn overlapping(&self, shape: &Shape) -> bool {
+        shape.iter().any(|position| {
+            position.0 < 0 ||
+            position.0 > BOARD_DIMENSION.0 - 1 ||
+            position.1 < 0 ||
+            self.stack[position.1 as usize][position.0 as usize].is_some()
+        })
     }
 
-    fn place(&mut self) {
+    fn rotate(&mut self, direction: RotationDirection) {
+        let mut rotated = Vec::new();
+        let (angle, new_direction) = match direction {
+            RotationDirection::Clockwise => (
+                f32::from(-90.0).to_radians(),
+                CardinalDirection::from_i32((self.falling.direction as i32 + 1) % 4).unwrap(),
+            ),
+            RotationDirection::CounterClockwise => (
+                f32::from(90.0).to_radians(),
+                CardinalDirection::from_i32(((self.falling.direction as i32 - 1) % 4 + 4) % 4).unwrap(),
+            ),
+        };
+        for position in self.falling.shape.iter() {
+            let x = (position.0 - self.falling.center.0) as f32;
+            let y = (position.1 - self.falling.center.1) as f32;
+            rotated.push((
+                ((x * angle.cos() - y * angle.sin()) + self.falling.center.0 as f32).round() as i32,
+                ((x * angle.sin() + y * angle.cos()) + self.falling.center.1 as f32).round() as i32,
+            ));
+        }
+        let offset_data = match self.falling.variant {
+            TetrominoVariant::J | TetrominoVariant::L | TetrominoVariant::S | TetrominoVariant::T | TetrominoVariant::Z => vec![
+                vec![( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // North
+                vec![( 0,  0), ( 1,  0), ( 1, -1), ( 0,  2), ( 1,  2)], // East
+                vec![( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // South
+                vec![( 0,  0), (-1,  0), (-1, -1), ( 0,  2), (-1,  2)], // West
+            ],
+            TetrominoVariant::I => vec![
+                vec![( 0,  0), (-1,  0), ( 2,  0), (-1,  0), ( 2,  0)],
+                vec![(-1,  0), ( 0,  0), ( 0,  0), ( 0,  1), ( 0, -2)],
+                vec![(-1,  1), ( 1,  1), (-2,  1), ( 1,  0), (-2,  0)],
+                vec![( 0,  1), ( 0,  1), ( 0,  1), ( 0, -1), ( 0,  2)],
+            ],
+            TetrominoVariant::O => vec![
+                vec![( 0,  0)],
+                vec![( 0, -1)],
+                vec![(-1, -1)],
+                vec![(-1,  0)],
+            ],
+        };
+        for i in 0..offset_data[0].len() {
+            let offset_x = offset_data[new_direction as usize][i].0 - offset_data[self.falling.direction as usize][i].0;
+            let offset_y = offset_data[new_direction as usize][i].1 - offset_data[self.falling.direction as usize][i].1;
+            let mut kicked = rotated.clone();
+            for position in kicked.iter_mut() {
+                position.0 -= offset_x;
+                position.1 -= offset_y;
+            }
+            if !self.overlapping(&kicked) {
+                self.falling.shape = kicked;
+                self.falling.center.0 -= offset_x;
+                self.falling.center.1 -= offset_y;
+                self.falling.direction = new_direction;
+                self.locking = false;
+                self.update_ghost();
+                return
+            }
+        }
+    }
+
+    fn lock(&mut self) {
         for position in self.falling.shape.iter() {
             if position.1.is_negative() {
                 self.end = true;
@@ -266,21 +313,21 @@ impl Game {
             }
             self.stack[position.1 as usize][position.0 as usize] = Some(self.falling.color);
         }
-        let mut falling = self.get_next();
-        for i in 0..2 {
-            if self.stack[i].iter().any(|block| block.is_some()) {
-                for position in falling.shape.iter_mut() {
-                    position.1 -= 1;
-                }
-            }
-        }
+        let falling = self.get_next();
+        // for i in 0..2 {
+        //     if self.stack[i].iter().any(|block| block.is_some()) {
+        //         for position in falling.shape.iter_mut() {
+        //             position.1 -= 1;
+        //         }
+        //     }
+        // }
         self.falling = falling;
         self.can_hold = true;
         self.update_ghost();
     }
 
     fn soft_drop(&mut self) {
-        self.shift(Direction::Down);
+        self.shift(ShiftDirection::Down);
         if !self.hitting_bottom(&self.falling) {
             self.score += 1;
         }
@@ -289,11 +336,11 @@ impl Game {
     fn hard_drop(&mut self) {
         while !self.hitting_bottom(&self.falling) {
             for position in self.falling.shape.iter_mut() {
-                position.1 += 1;
+                position.1 -= 1;
                 self.score += 2;
             }
         }
-        self.place();
+        self.lock();
     }
 
     fn hold(&mut self) {
@@ -319,20 +366,20 @@ fn render(game: &Game) -> Result<()> {
                 .queue(MoveTo(x, y))?
                 .queue(PrintStyledContent((|| {
                     for position in game.falling.shape.iter() {
-                        if !position.1.is_negative() && (position.1 + 1) as u16 == y
+                        if !position.1.is_negative() && HEIGHT - position.1 as u16 - 2 == y
                         && ((position.0 + 1) as u16 * 2 == x || (position.0 + 1) as u16 * 2 - 1 == x) {
-                            return if game.placing { "▓".with(game.falling.color) } else { " ".on(game.falling.color) }
+                            return if game.locking { "▓".with(game.falling.color) } else { " ".on(game.falling.color) }
                         }
                     }
                     for position in game.ghost.as_ref().unwrap().shape.iter() {
-                        if !position.1.is_negative() && (position.1 + 1) as u16 == y
+                        if !position.1.is_negative() && HEIGHT - position.1 as u16 - 2 == y
                         && ((position.0 + 1) as u16 * 2 == x || (position.0 + 1) as u16 * 2 - 1 == x) {
                             return "░".with(game.falling.color)
                         }
                     }
                     for (i, row) in game.stack.iter().enumerate() {
                         for (j, color) in row.iter().enumerate() {
-                            if color.is_some() && (i + 1) as u16 == y && ((j + 1) as u16 * 2 == x || (j + 1) as u16 * 2 - 1 == x) {
+                            if color.is_some() && HEIGHT - i as u16 - 2 == y && ((j + 1) as u16 * 2 == x || (j + 1) as u16 * 2 - 1 == x) {
                                 return " ".on(color.unwrap())
                             }
                         }
@@ -348,9 +395,9 @@ fn render(game: &Game) -> Result<()> {
         .queue(Print("        "))?;
     for position in game.next.shape.iter() {
         stdout
-            .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 2, position.1 as u16 + 4))?
+            .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 2, HEIGHT - position.1 as u16 + 1))?
             .queue(PrintStyledContent(" ".on(game.next.color)))?
-            .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 1, position.1 as u16 + 4))?
+            .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 1, HEIGHT - position.1 as u16 + 1))?
             .queue(PrintStyledContent(" ".on(game.next.color)))?;
     }
     if game.holding.is_some() {
@@ -361,9 +408,9 @@ fn render(game: &Game) -> Result<()> {
             .queue(Print("        "))?;
         for position in game.holding.as_ref().unwrap().shape.iter() {
             stdout
-                .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 2, position.1 as u16 + 9))?
+                .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 2, HEIGHT - position.1 as u16 + 6))?
                 .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?
-                .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 1, position.1 as u16 + 9))?
+                .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 1, HEIGHT - position.1 as u16 + 6))?
                 .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?;
         }
     }
@@ -460,13 +507,12 @@ fn main() -> Result<()> {
     Ok(loop {
         if game.end { quit!() }
 
-        if game.placing {
+        if game.locking {
             match lock_delay_start {
                 Some(remaining_duration) => {
-                    if lock_delay_duration.checked_sub(remaining_duration.elapsed()).is_none() || game.num_lock_resets == 15 {
-                        game.place();
-                        game.placing = false;
-                        game.num_lock_resets = 0;
+                    if lock_delay_duration.checked_sub(remaining_duration.elapsed()).is_none() {
+                        game.lock();
+                        game.locking = false;
                     }
                 },
                 None => lock_delay_start = Some(Instant::now()),
@@ -480,10 +526,11 @@ fn main() -> Result<()> {
                 if poll(remaining_duration)? {
                     if let Event::Key(event) = read()? {
                         match event.code {
-                            KeyCode::Char('w') | KeyCode::Char('W') | KeyCode::Up => game.rotate(),
-                            KeyCode::Char('a') | KeyCode::Char('A') | KeyCode::Left => game.shift(Direction::Left),
+                            KeyCode::Char('w') | KeyCode::Char('W') | KeyCode::Up => game.rotate(RotationDirection::Clockwise),
+                            KeyCode::Char('a') | KeyCode::Char('A') | KeyCode::Left => game.shift(ShiftDirection::Left),
                             KeyCode::Char('s') | KeyCode::Char('S') | KeyCode::Down => game.soft_drop(),
-                            KeyCode::Char('d') | KeyCode::Char('D') | KeyCode::Right => game.shift(Direction::Right),
+                            KeyCode::Char('d') | KeyCode::Char('D') | KeyCode::Right => game.shift(ShiftDirection::Right),
+                            KeyCode::Char('z') | KeyCode::Char('Z') => game.rotate(RotationDirection::CounterClockwise),
                             KeyCode::Char('c') | KeyCode::Char('C') => game.hold(),
                             KeyCode::Char(' ') => game.hard_drop(),
                             KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => quit!(),

@@ -3,12 +3,12 @@ use std::{fs::{remove_file}, process::{Command, Child}, thread::{sleep}, time::D
 pub const DEBUG_PATH: &str = "/tmp/tetris_debug_pipe";
 
 #[macro_export]
-macro_rules! debug_print {
+macro_rules! debug_println {
     ($($args:tt)*) => {
         let mut pipe = std::fs::OpenOptions::new()
             .write(true)
             .open(DEBUG_PATH)
-            .unwrap_or_else(|_| panic!("Failed to open {}", DEBUG_PATH));
+            .unwrap_or_else(|_| panic!("failed to open {}", DEBUG_PATH));
         writeln!(pipe, $($args)*).unwrap();
         pipe.flush().unwrap();
     };
