@@ -396,16 +396,12 @@ fn render(game: &Game) -> Result<()> {
             stdout
                 .queue(MoveTo(x as u16, y as u16))?
                 .queue(PrintStyledContent((|| {
-                    for position in game.falling.shape.iter() {
-                        if position_in_view(position, &(x, y)) {
-                            return if game.locking { "▓".with(game.falling.color) } else { " ".on(game.falling.color) }
-                        }
+                    if game.falling.shape.iter().any(|position| position_in_view(position, &(x, y))) {
+                        return if game.locking { "▓".with(game.falling.color) } else { " ".on(game.falling.color) }
                     }
                     if let Some(ghost) = &game.ghost {
-                        for position in ghost.shape.iter() {
-                            if position_in_view(position, &(x, y)) {
-                                return "░".with(game.falling.color)
-                            }
+                        if ghost.shape.iter().any(|position| position_in_view(position, &(x, y))) {
+                            return "░".with(game.falling.color)
                         }
                     }
                     for (i, row) in game.stack.iter().enumerate() {
