@@ -1,4 +1,4 @@
-use std::{io::{stdout, Write}, time::{Instant, Duration}, env, thread::sleep, mem::replace};
+use std::{io::{stdout, Write}, time::{Instant, Duration}, env::args, thread::sleep, mem::replace};
 use crossterm::{
     Result, QueueableCommand, execute,
     style::{PrintStyledContent, StyledContent, Color, Stylize, ContentStyle, Print},
@@ -161,10 +161,10 @@ impl Game {
     fn tick(&mut self) {
         if self.locking { return }
         let num_cleared = self.clear();
-        self.lines += num_cleared;
         if num_cleared > 0 {
-            self.update_ghost();
+            self.lines += num_cleared;
             self.level = self.start_level + self.lines / 10;
+            self.update_ghost();
         }
         self.score += if self.stack.iter().all(|row| row.iter().all(|block| block.is_none())) {
             match num_cleared {
@@ -195,7 +195,25 @@ impl Game {
 
     fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
-            position.1 == 0 || self.stack[(position.1 - 1) as usize][position.0 as usize].is_some()
+            position.1 == 0 ||
+            position.1 < BOARD_DIMENSION.1 &&
+            self.stack[(position.1 - 1) as usize][position.0 as usize].is_some()
+        })
+    }
+
+    fn hitting_left(&self, tetromino: &Tetromino) -> bool {
+        tetromino.shape.iter().any(|position| {
+            position.0 == 0 ||
+            position.1 < BOARD_DIMENSION.1 &&
+            self.stack[position.1 as usize][(position.0 - 1) as usize].is_some()
+        })
+    }
+
+    fn hitting_right(&self, tetromino: &Tetromino) -> bool {
+        tetromino.shape.iter().any(|position| {
+            position.0 == BOARD_DIMENSION.0 - 1 ||
+            position.1 < BOARD_DIMENSION.1 &&
+            self.stack[position.1 as usize][(position.0 + 1) as usize].is_some()
         })
     }
 
@@ -206,14 +224,13 @@ impl Game {
                 position.1 -= 1;
             }
         }
-        self.ghost = Some(ghost);
+        self.ghost = if self.overlapping(&ghost.shape) { None } else { Some(ghost) };
     }
 
     fn shift(&mut self, direction: ShiftDirection) {
         match direction {
             ShiftDirection::Left => {
-                if self.falling.shape.iter().all(|position| position.0 > 0
-                && (position.1.is_negative() || self.stack[position.1 as usize][(position.0 - 1) as usize].is_none())) {
+                if !self.hitting_left(&self.falling) {
                     for position in self.falling.shape.iter_mut() {
                         position.0 -= 1;
                     }
@@ -222,8 +239,7 @@ impl Game {
                 }
             },
             ShiftDirection::Right => {
-                if self.falling.shape.iter().all(|position| position.0 < BOARD_DIMENSION.0 - 1
-                && (position.1.is_negative() || self.stack[position.1 as usize][(position.0 + 1) as usize].is_none())) {
+                if !self.hitting_right(&self.falling) {
                     for position in self.falling.shape.iter_mut() {
                         position.0 += 1;
                     }
@@ -248,8 +264,9 @@ impl Game {
     fn overlapping(&self, shape: &Shape) -> bool {
         shape.iter().any(|position| {
             position.0 < 0 ||
-            position.0 > BOARD_DIMENSION.0 - 1 ||
             position.1 < 0 ||
+            position.0 > BOARD_DIMENSION.0 - 1 ||
+            position.1 > BOARD_DIMENSION.1 - 1 ||
             self.stack[position.1 as usize][position.0 as usize].is_some()
         })
     }
@@ -316,20 +333,21 @@ impl Game {
 
     fn lock(&mut self) {
         for position in self.falling.shape.iter() {
-            if position.1.is_negative() {
+            if position.1 > BOARD_DIMENSION.1 - 1 {
                 self.end = true;
                 return
             }
             self.stack[position.1 as usize][position.0 as usize] = Some(self.falling.color);
         }
-        let falling = self.get_next();
-        // for i in 0..2 {
-        //     if self.stack[i].iter().any(|block| block.is_some()) {
-        //         for position in falling.shape.iter_mut() {
-        //             position.1 -= 1;
-        //         }
-        //     }
-        // }
+        let mut falling = self.get_next();
+        for i in 17..20 {
+            if self.stack[i].iter().any(|block| block.is_some()) {
+                for position in falling.shape.iter_mut() {
+                    position.1 += 1;
+                }
+                falling.center.1 += 1;
+            }
+        }
         self.falling = falling;
         self.can_hold = true;
         self.update_ghost();
@@ -369,27 +387,33 @@ const HEIGHT: u16 = BOARD_DIMENSION.1 as u16 + 2;
 fn render(game: &Game) -> Result<()> {
     let mut stdout = stdout();
 
-    for x in 1..WIDTH - 1 {
-        for y in 1..HEIGHT - 1 {
+    fn position_in_view(position: &Dimension, view: &Dimension) -> bool {
+        BOARD_DIMENSION.1 - position.1 == view.1 && ((position.0 + 1) * 2 == view.0 || (position.0 + 1) * 2 - 1 == view.0)
+    }
+
+    for x in 1..WIDTH as i32 - 1 {
+        for y in 1..HEIGHT as i32 - 1 {
             stdout
-                .queue(MoveTo(x, y))?
+                .queue(MoveTo(x as u16, y as u16))?
                 .queue(PrintStyledContent((|| {
                     for position in game.falling.shape.iter() {
-                        if !position.1.is_negative() && HEIGHT - position.1 as u16 - 2 == y
-                        && ((position.0 + 1) as u16 * 2 == x || (position.0 + 1) as u16 * 2 - 1 == x) {
+                        if position_in_view(position, &(x, y)) {
                             return if game.locking { "▓".with(game.falling.color) } else { " ".on(game.falling.color) }
                         }
                     }
-                    for position in game.ghost.as_ref().unwrap().shape.iter() {
-                        if !position.1.is_negative() && HEIGHT - position.1 as u16 - 2 == y
-                        && ((position.0 + 1) as u16 * 2 == x || (position.0 + 1) as u16 * 2 - 1 == x) {
-                            return "░".with(game.falling.color)
+                    if let Some(ghost) = &game.ghost {
+                        for position in ghost.shape.iter() {
+                            if position_in_view(position, &(x, y)) {
+                                return "░".with(game.falling.color)
+                            }
                         }
                     }
                     for (i, row) in game.stack.iter().enumerate() {
                         for (j, color) in row.iter().enumerate() {
-                            if color.is_some() && HEIGHT - i as u16 - 2 == y && ((j + 1) as u16 * 2 == x || (j + 1) as u16 * 2 - 1 == x) {
-                                return " ".on(color.unwrap())
+                            if let Some(color) = color {
+                                if position_in_view(&(j as i32, i as i32), &(x, y)) {
+                                    return " ".on(*color)
+                                }
                             }
                         }
                     }
@@ -402,24 +426,24 @@ fn render(game: &Game) -> Result<()> {
         .queue(Print("        "))?
         .queue(MoveTo(WIDTH + 1, 5))?
         .queue(Print("        "))?;
-    for position in game.next.shape.iter() {
+    for position in game.next.shape.iter().map(|(x, y)| (*x as u16, *y as u16)) {
         stdout
-            .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 2, HEIGHT - position.1 as u16 + 1))?
+            .queue(MoveTo((position.0 - 3) * 2 + WIDTH + 2, HEIGHT - position.1 + 1))?
             .queue(PrintStyledContent(" ".on(game.next.color)))?
-            .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 1, HEIGHT - position.1 as u16 + 1))?
+            .queue(MoveTo((position.0 - 3) * 2 + WIDTH + 1, HEIGHT - position.1 + 1))?
             .queue(PrintStyledContent(" ".on(game.next.color)))?;
     }
-    if game.holding.is_some() {
+    if let Some(holding) = &game.holding {
         stdout
             .queue(MoveTo(WIDTH + 1, 9))?
             .queue(Print("        "))?
             .queue(MoveTo(WIDTH + 1, 10))?
             .queue(Print("        "))?;
-        for position in game.holding.as_ref().unwrap().shape.iter() {
+        for position in holding.shape.iter().map(|(x, y)| (*x as u16, *y as u16)) {
             stdout
-                .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 2, HEIGHT - position.1 as u16 + 6))?
+                .queue(MoveTo((position.0 - 3) * 2 + WIDTH + 2, HEIGHT - position.1 + 6))?
                 .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?
-                .queue(MoveTo((position.0 - 3) as u16 * 2 + WIDTH + 1, HEIGHT - position.1 as u16 + 6))?
+                .queue(MoveTo((position.0 - 3) * 2 + WIDTH + 1, HEIGHT - position.1 + 6))?
                 .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?;
         }
     }
@@ -484,7 +508,7 @@ fn main() -> Result<()> {
 
     // let debug_window = DebugWindow::new();
 
-    let args = env::args().collect::<Vec<String>>();
+    let args = args().collect::<Vec<String>>();
     let level = if args.len() == 2 { args[1].parse::<u32>().unwrap() } else { 1 };
 
     enable_raw_mode()?;
