@@ -22,3 +22,11 @@ cargo build --release
 |Counter-Clockwise  |`[Z]`          |
 |Hold               |`[C]`          |
 |Quit               |`[ESC]` / `[Q]`|
+
+## TODO
+
+- Scoreboard
+- Combos
+- T-Spin scoring
+- Clear animation
+- Level fall speed/gravity accuracy
