@@ -331,7 +331,7 @@ impl Game {
         }
     }
 
-    fn lock(&mut self) {
+    fn place(&mut self) {
         for position in self.falling.shape.iter() {
             if position.1 > BOARD_DIMENSION.1 - 1 {
                 self.end = true;
@@ -367,7 +367,7 @@ impl Game {
                 self.score += 2;
             }
         }
-        self.lock();
+        self.place();
     }
 
     fn hold(&mut self) {
@@ -438,9 +438,9 @@ fn render(game: &Game) -> Result<()> {
         for position in holding.shape.iter().map(|(x, y)| (*x as u16, *y as u16)) {
             stdout
                 .queue(MoveTo((position.0 - 3) * 2 + WIDTH + 2, HEIGHT - position.1 + 6))?
-                .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?
+                .queue(PrintStyledContent(" ".on(holding.color)))?
                 .queue(MoveTo((position.0 - 3) * 2 + WIDTH + 1, HEIGHT - position.1 + 6))?
-                .queue(PrintStyledContent(" ".on(game.holding.as_ref().unwrap().color)))?;
+                .queue(PrintStyledContent(" ".on(holding.color)))?;
         }
     }
     stdout
@@ -463,14 +463,14 @@ fn draw(game: &Game) -> Result<()> {
         for y in 0..HEIGHT {
             stdout
                 .queue(MoveTo(x, y))?
-                .queue(PrintStyledContent(StyledContent::new(ContentStyle::new(),
+                .queue(Print(
                     if x == 0 && y == 0 {
                         "╔"
                     } else if x == 0 && y == HEIGHT - 1 {
                         "╚"
                     } else if x == WIDTH - 1 && y == 0 {
                         "╗"
-                    } else if x == WIDTH -1 &&  y == HEIGHT - 1 {
+                    } else if x == WIDTH - 1 && y == HEIGHT - 1 {
                         "╝"
                     } else if x == 0 || x == WIDTH - 1 {
                         "║"
@@ -481,7 +481,7 @@ fn draw(game: &Game) -> Result<()> {
                     } else {
                         " "
                     }
-                )))?;
+                ))?;
         }
     }
     stdout
@@ -540,7 +540,7 @@ fn main() -> Result<()> {
             match lock_delay_start {
                 Some(remaining_duration) => {
                     if lock_delay_duration.checked_sub(remaining_duration.elapsed()).is_none() {
-                        game.lock();
+                        game.place();
                         game.locking = false;
                     }
                 },
