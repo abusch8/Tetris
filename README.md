@@ -5,7 +5,7 @@ Modern Tetris CLI written in Rust
 ## Installation
 
 ```bash
-git clone https://github.com/abusch8/tetris
+git clone https://github.com/abusch8/Tetris
 cd tetris
 cargo build --release
 ```
