@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::{fs::remove_file, process::{Command, Child}, thread::sleep, time::Duration};
 
 pub const DEBUG_PATH: &str = "/tmp/tetris_debug_pipe";
