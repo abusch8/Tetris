@@ -102,14 +102,14 @@ impl Game {
         self.shift(ShiftDirection::Down);
     }
 
-    pub fn get_next(&mut self) -> Tetromino {
+    fn get_next(&mut self) -> Tetromino {
         let next = self.next.clone();
         if self.bag.is_empty() { self.bag = rand_bag_gen() }
         self.next = self.bag.pop().unwrap();
         next
     }
 
-    pub fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
+    fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
             position.1 == 0 ||
             position.1 < BOARD_DIMENSION.1 &&
@@ -117,7 +117,7 @@ impl Game {
         })
     }
 
-    pub fn hitting_left(&self, tetromino: &Tetromino) -> bool {
+    fn hitting_left(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
             position.0 == 0 ||
             position.1 < BOARD_DIMENSION.1 &&
@@ -125,7 +125,7 @@ impl Game {
         })
     }
 
-    pub fn hitting_right(&self, tetromino: &Tetromino) -> bool {
+    fn hitting_right(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
             position.0 == BOARD_DIMENSION.0 - 1 ||
             position.1 < BOARD_DIMENSION.1 &&
@@ -133,7 +133,7 @@ impl Game {
         })
     }
 
-    pub fn update_ghost(&mut self) {
+    fn update_ghost(&mut self) {
         let mut ghost = self.falling.clone();
         while !self.hitting_bottom(&ghost) {
             for position in ghost.shape.iter_mut() {
@@ -177,7 +177,7 @@ impl Game {
         self.update_ghost();
     }
 
-    pub fn overlapping(&self, shape: &Shape) -> bool {
+    fn overlapping(&self, shape: &Shape) -> bool {
         shape.iter().any(|position| {
             position.0 < 0 ||
             position.1 < 0 ||

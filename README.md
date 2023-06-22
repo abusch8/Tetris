@@ -6,7 +6,7 @@ Modern Tetris CLI written in Rust
 
 ```bash
 git clone https://github.com/abusch8/Tetris
-cd tetris
+cd Tetris
 cargo build --release
 ```
 
@@ -28,5 +28,6 @@ cargo build --release
 - Scoreboard
 - Combos
 - T-Spin scoring
-- Clear animation
+- Fix soft drop scoring accuracy
 - Level fall speed/gravity accuracy
+- Clear animation
