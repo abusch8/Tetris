@@ -8,6 +8,9 @@ use strum::IntoEnumIterator;
 use crate::display::BOARD_DIMENSION;
 use crate::tetromino::*;
 
+// use crate::debug::*;
+// use crate::debug_println;
+
 #[derive(Clone, Copy, FromPrimitive)]
 pub enum ShiftDirection { Left, Right, Down }
 
@@ -31,6 +34,7 @@ pub struct Game {
     pub score: u32,
     pub level: u32,
     pub lines: u32,
+    pub combo: i32,
     pub can_hold: bool,
     pub locking: bool,
     pub end: bool,
@@ -50,56 +54,13 @@ impl Game {
             score: 0,
             level: start_level,
             lines: 0,
+            combo: -1,
             can_hold: true,
             locking: false,
             end: false,
         };
         game.update_ghost();
         game
-    }
-
-    fn clear(&mut self) -> u32 {
-        let old_stack = replace(&mut self.stack, Vec::new());
-        let mut num_cleared = 0;
-        for row in old_stack.into_iter() {
-            if row.iter().all(|block| block.is_some()) {
-                num_cleared += 1;
-            } else {
-                self.stack.push(row);
-            }
-        }
-        for _ in 0..num_cleared {
-            self.stack.push(vec![None; BOARD_DIMENSION.0 as usize]);
-        }
-        num_cleared
-    }
-
-    pub fn tick(&mut self) {
-        if self.locking { return }
-        let num_cleared = self.clear();
-        if num_cleared > 0 {
-            self.lines += num_cleared;
-            self.level = self.start_level + self.lines / 10;
-            self.update_ghost();
-        }
-        self.score += if self.stack.iter().all(|row| row.iter().all(|block| block.is_none())) {
-            match num_cleared {
-                1 => self.level * 800,
-                2 => self.level * 1200,
-                3 => self.level * 1800,
-                4 => self.level * 2000,
-                _ => 0,
-            }
-        } else {
-            match num_cleared {
-                1 => self.level * 100,
-                2 => self.level * 300,
-                3 => self.level * 500,
-                4 => self.level * 800,
-                _ => 0,
-            }
-        };
-        self.shift(ShiftDirection::Down);
     }
 
     fn get_next(&mut self) -> Tetromino {
@@ -247,6 +208,43 @@ impl Game {
         }
     }
 
+    fn line_clear(&mut self) -> u32 {
+        let old_stack = replace(&mut self.stack, Vec::new());
+        let mut num_cleared = 0;
+        for row in old_stack.into_iter() {
+            if row.iter().all(|block| block.is_some()) {
+                num_cleared += 1;
+            } else {
+                self.stack.push(row);
+            }
+        }
+        for _ in 0..num_cleared {
+            self.stack.push(vec![None; BOARD_DIMENSION.0 as usize]);
+        }
+        num_cleared
+    }
+
+    fn calculate_score(&mut self, num_cleared: u32) {
+        self.score += if self.stack.iter().all(|row| row.iter().all(|block| block.is_none())) {
+            match num_cleared {
+                1 => self.level * 800,
+                2 => self.level * 1200,
+                3 => self.level * 1800,
+                4 => self.level * 2000,
+                _ => 0,
+            }
+        } else {
+            match num_cleared {
+                1 => self.level * 100,
+                2 => self.level * 300,
+                3 => self.level * 500,
+                4 => self.level * 800,
+                _ => 0,
+            }
+        };
+        self.score += 50 * self.combo as u32 * self.level;
+    }
+
     pub fn place(&mut self) {
         for position in self.falling.shape.iter() {
             if position.1 > BOARD_DIMENSION.1 - 1 {
@@ -254,6 +252,16 @@ impl Game {
                 return
             }
             self.stack[position.1 as usize][position.0 as usize] = Some(self.falling.color);
+        }
+        let num_cleared = self.line_clear();
+        if num_cleared > 0 {
+            self.lines += num_cleared;
+            self.level = self.start_level + self.lines / 10;
+            self.combo += 1;
+            self.calculate_score(num_cleared);
+            self.update_ghost();
+        } else {
+            self.combo = -1;
         }
         let mut falling = self.get_next();
         for i in 17..20 {

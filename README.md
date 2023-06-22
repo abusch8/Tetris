@@ -26,8 +26,8 @@ cargo build --release
 ## TODO
 
 - Scoreboard
-- Combos
 - T-Spin scoring
 - Fix soft drop scoring accuracy
 - Level fall speed/gravity accuracy
 - Clear animation
+- Scoring feedback

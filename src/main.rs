@@ -6,9 +6,10 @@ use crossterm::{
     event::{Event, KeyCode, read, poll},
 };
 
-// use crate::debug::*;
 use crate::display::{draw, render};
 use crate::game::*;
+
+// use crate::debug::*;
 
 mod debug;
 mod display;
@@ -85,7 +86,7 @@ fn main() -> Result<()> {
                 }
             },
             None => {
-                game.tick();
+                game.shift(ShiftDirection::Down);
                 tick_start = Instant::now();
             },
         }

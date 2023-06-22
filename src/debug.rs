@@ -7,6 +7,7 @@ pub const DEBUG_PATH: &str = "/tmp/tetris_debug_pipe";
 #[macro_export]
 macro_rules! debug_println {
     ($($args:tt)*) => {
+        use std::io::Write;
         let mut pipe = std::fs::OpenOptions::new()
             .write(true)
             .open(DEBUG_PATH)
