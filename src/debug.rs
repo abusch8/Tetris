@@ -6,7 +6,8 @@ pub const DEBUG_PATH: &str = "/tmp/tetris_debug_pipe";
 
 #[macro_export]
 macro_rules! debug_println {
-    ($($args:tt)*) => {
+    ($($args:tt)*) => {{
+        use crate::debug::DEBUG_PATH;
         use std::io::Write;
         let mut pipe = std::fs::OpenOptions::new()
             .write(true)
@@ -14,7 +15,7 @@ macro_rules! debug_println {
             .unwrap_or_else(|_| panic!("failed to open {}", DEBUG_PATH));
         writeln!(pipe, $($args)*).unwrap();
         pipe.flush().unwrap();
-    };
+    }};
 }
 
 pub struct DebugWindow {

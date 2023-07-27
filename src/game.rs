@@ -11,10 +11,10 @@ use crate::tetromino::*;
 // use crate::debug::*;
 // use crate::debug_println;
 
-#[derive(Clone, Copy, FromPrimitive)]
+#[derive(Clone, Copy, FromPrimitive, PartialEq)] // TODO: remove clone/copy
 pub enum ShiftDirection { Left, Right, Down }
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum RotationDirection { Clockwise, CounterClockwise }
 
 fn rand_bag_gen() -> Vec<Tetromino> {
@@ -37,6 +37,7 @@ pub struct Game {
     pub combo: i32,
     pub can_hold: bool,
     pub locking: bool,
+    pub lock_reset: bool,
     pub end: bool,
 }
 
@@ -56,6 +57,7 @@ impl Game {
             lines: 0,
             combo: -1,
             can_hold: true,
+            lock_reset: false,
             locking: false,
             end: false,
         };
@@ -70,7 +72,7 @@ impl Game {
         next
     }
 
-    fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
+    pub fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
             position.1 == 0 ||
             position.1 < BOARD_DIMENSION.1 &&
@@ -112,7 +114,8 @@ impl Game {
                         position.0 -= 1;
                     }
                     self.falling.center.0 -= 1;
-                    self.locking = false;
+                    // self.locking = false;
+                    // if self.locking { self.lock_reset = true }
                 }
             },
             ShiftDirection::Right => {
@@ -121,7 +124,8 @@ impl Game {
                         position.0 += 1;
                     }
                     self.falling.center.0 += 1;
-                    self.locking = false;
+                    // self.locking = false;
+                    // if self.locking { self.lock_reset = true }
                 }
             },
             ShiftDirection::Down => {
@@ -130,9 +134,8 @@ impl Game {
                         position.1 -= 1;
                     }
                     self.falling.center.1 -= 1;
-                } else {
-                    self.locking = true;
                 }
+                self.locking = self.hitting_bottom(&self.falling);
             },
         }
         self.update_ghost();
@@ -201,6 +204,7 @@ impl Game {
                 self.falling.center.0 -= offset_x;
                 self.falling.center.1 -= offset_y;
                 self.falling.direction = new_direction;
+                // self.lock_reset = true;
                 self.locking = false;
                 self.update_ghost();
                 return
@@ -273,6 +277,8 @@ impl Game {
             }
         }
         self.falling = falling;
+        // self.lock_reset = false;
+        self.locking = false;
         self.can_hold = true;
         self.update_ghost();
     }

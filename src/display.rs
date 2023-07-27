@@ -7,9 +7,9 @@ use crossterm::{
 
 use crate::game::Game;
 
-pub const BOARD_DIMENSION: Dimension = (10, 20);
-
 pub type Dimension = (i32, i32);
+
+pub const BOARD_DIMENSION: Dimension = (10, 20);
 
 const WIDTH: u16 = BOARD_DIMENSION.0 as u16 * 2 + 2;
 const HEIGHT: u16 = BOARD_DIMENSION.1 as u16 + 2;
@@ -86,7 +86,7 @@ pub fn render(game: &Game) -> Result<()> {
     Ok(())
 }
 
-pub fn draw(game: &Game) -> Result<()> {
+pub fn draw() -> Result<()> {
     let mut stdout = stdout();
 
     for x in 0..WIDTH {
@@ -123,8 +123,6 @@ pub fn draw(game: &Game) -> Result<()> {
         .queue(Print("HOLDING:"))?
         .queue(MoveTo(0, 0))?
         .flush()?;
-
-    render(game)?;
 
     Ok(())
 }

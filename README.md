@@ -25,9 +25,10 @@ cargo build --release
 
 ## TODO
 
-- Scoreboard
+- Leaderboard
 - T-Spin scoring
 - Fix soft drop scoring accuracy
 - Level fall speed/gravity accuracy
-- Clear animation
+- Line clear animation
 - Scoring feedback
+- Prevent infinity
