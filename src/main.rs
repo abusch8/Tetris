@@ -9,7 +9,7 @@ use crossterm::{
 use crate::display::{draw, render};
 use crate::game::*;
 
-// use crate::debug::*;
+use crate::debug::*;
 
 mod debug;
 mod display;
@@ -19,7 +19,7 @@ mod tetromino;
 fn main() -> Result<()> {
     let mut stdout = stdout();
 
-    // let debug_window = DebugWindow::new();
+    let debug_window = DebugWindow::new();
 
     let args = args().collect::<Vec<String>>();
     let level = if args.len() == 2 { args[1].parse::<u32>().unwrap() } else { 1 };
@@ -42,7 +42,7 @@ fn main() -> Result<()> {
 
     macro_rules! quit {
         () => {{
-            // debug_window.close();
+            debug_window.close();
             disable_raw_mode()?;
             execute!(stdout, Show, Clear(ClearType::All))?;
             println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.score, game.level, game.lines);
@@ -70,8 +70,9 @@ fn main() -> Result<()> {
         match tick_duration.checked_sub(tick_start.elapsed()) {
             Some(remaining_duration) => {
                 if poll(remaining_duration)? {
-                    if let Event::Key(event) = read()? {
-                        match event.code {
+                    match read()? {
+                        Event::Resize(_, _) => draw(game)?,
+                        Event::Key(event) => match event.code {
                             KeyCode::Char('w') | KeyCode::Char('W') | KeyCode::Up => game.rotate(RotationDirection::Clockwise),
                             KeyCode::Char('a') | KeyCode::Char('A') | KeyCode::Left => game.shift(ShiftDirection::Left),
                             KeyCode::Char('s') | KeyCode::Char('S') | KeyCode::Down => game.soft_drop(),
@@ -81,7 +82,8 @@ fn main() -> Result<()> {
                             KeyCode::Char(' ') => game.hard_drop(),
                             KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => quit!(),
                             _ => continue,
-                        };
+                        },
+                        _ => continue,
                     }
                 }
             },

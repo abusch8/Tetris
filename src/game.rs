@@ -27,7 +27,8 @@ pub struct Game {
     pub falling: Tetromino,
     pub holding: Option<Tetromino>,
     pub ghost: Option<Tetromino>,
-    pub next: Tetromino,
+    // pub next: Tetromino,
+    pub next: Vec<Tetromino>,
     pub bag: Vec<Tetromino>,
     pub stack: Vec<Vec<Option<Color>>>,
     pub start_level: u32,
@@ -47,7 +48,7 @@ impl Game {
             falling: bag.pop().unwrap(),
             holding: None,
             ghost: None,
-            next: bag.pop().unwrap(),
+            next: (0..3).map(|_| bag.pop().unwrap()).collect(),
             bag,
             stack: vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize],
             start_level,
@@ -64,10 +65,9 @@ impl Game {
     }
 
     fn get_next(&mut self) -> Tetromino {
-        let next = self.next.clone();
+        self.next.push(self.bag.pop().unwrap());
         if self.bag.is_empty() { self.bag = rand_bag_gen() }
-        self.next = self.bag.pop().unwrap();
-        next
+        self.next.remove(0)
     }
 
     fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
