@@ -12,6 +12,7 @@ use crate::display::{draw, render};
 use crate::game::*;
 
 use crate::debug::*;
+use crate::debug::*;
 
 mod debug;
 mod display;

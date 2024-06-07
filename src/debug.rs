@@ -3,19 +3,18 @@
 use std::{fs::remove_file, process::{Command, Child}, thread::sleep, time::Duration};
 
 pub const DEBUG_PATH: &str = "/tmp/tetris_debug_pipe";
+use std::io::Write;
 
 #[macro_export]
 macro_rules! debug_println {
-    ($($args:tt)*) => {{
-        use crate::debug::DEBUG_PATH;
-        use std::io::Write;
+    ($($args:tt)*) => {
         let mut pipe = std::fs::OpenOptions::new()
             .write(true)
-            .open(DEBUG_PATH)
-            .unwrap_or_else(|_| panic!("failed to open {}", DEBUG_PATH));
+            .open(crate::debug::DEBUG_PATH)
+            .unwrap_or_else(|_| panic!("failed to open {}", crate::debug::DEBUG_PATH));
         writeln!(pipe, $($args)*).unwrap();
         pipe.flush().unwrap();
-    }};
+    };
 }
 
 pub struct DebugWindow {

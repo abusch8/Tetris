@@ -2,6 +2,8 @@
 
 Modern Tetris CLI written in Rust
 
+![Preview](preview.png)
+
 ## Installation
 
 ```bash
