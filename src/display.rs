@@ -17,7 +17,7 @@ const BOARD_HEIGHT: u16 = BOARD_DIMENSION.1 as u16 + 2;
 pub fn render(game: &Game) -> Result<()> {
     let mut stdout = stdout();
 
-    debug_println!("RERENDER");
+    // debug_println!("RERENDER");
 
     let (terminal_width, _terminal_height) = terminal::size().unwrap();
 

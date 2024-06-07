@@ -27,7 +27,6 @@ pub struct Game {
     pub falling: Tetromino,
     pub holding: Option<Tetromino>,
     pub ghost: Option<Tetromino>,
-    // pub next: Tetromino,
     pub next: Vec<Tetromino>,
     pub bag: Vec<Tetromino>,
     pub stack: Vec<Vec<Option<Color>>>,
@@ -38,7 +37,6 @@ pub struct Game {
     pub combo: i32,
     pub can_hold: bool,
     pub locking: bool,
-    pub lock_reset: bool,
     pub end: bool,
 }
 
@@ -49,7 +47,7 @@ impl Game {
             falling: bag.pop().unwrap(),
             holding: None,
             ghost: None,
-            next: (0..3).map(|_| bag.pop().unwrap()).collect(),
+            next: bag.split_off(bag.len() - 3),
             bag,
             stack: vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize],
             start_level,
@@ -58,7 +56,6 @@ impl Game {
             lines: 0,
             combo: -1,
             can_hold: true,
-            lock_reset: false,
             locking: false,
             end: false,
         };
@@ -115,7 +112,6 @@ impl Game {
                     }
                     self.falling.center.0 -= 1;
                     // self.locking = false;
-                    // if self.locking { self.lock_reset = true }
                 }
             },
             ShiftDirection::Right => {
@@ -125,7 +121,6 @@ impl Game {
                     }
                     self.falling.center.0 += 1;
                     // self.locking = false;
-                    // if self.locking { self.lock_reset = true }
                 }
             },
             ShiftDirection::Down => {
@@ -204,7 +199,6 @@ impl Game {
                 self.falling.center.0 -= offset_x;
                 self.falling.center.1 -= offset_y;
                 self.falling.direction = new_direction;
-                // self.lock_reset = true;
                 self.locking = false;
                 self.update_ghost();
                 return
@@ -277,7 +271,6 @@ impl Game {
             }
         }
         self.falling = falling;
-        // self.lock_reset = false;
         self.locking = false;
         self.can_hold = true;
         self.update_ghost();
