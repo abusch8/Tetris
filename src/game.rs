@@ -111,7 +111,6 @@ impl Game {
                         position.0 -= 1;
                     }
                     self.falling.center.0 -= 1;
-                    // self.locking = false;
                 }
             },
             ShiftDirection::Right => {
@@ -120,7 +119,6 @@ impl Game {
                         position.0 += 1;
                     }
                     self.falling.center.0 += 1;
-                    // self.locking = false;
                 }
             },
             ShiftDirection::Down => {
@@ -303,3 +301,4 @@ impl Game {
         }
     }
 }
+

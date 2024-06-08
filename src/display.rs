@@ -1,6 +1,11 @@
 use::std::io::{stdout, Write};
 use crossterm::{
-    cursor::MoveTo, execute, style::{ContentStyle, Print, PrintStyledContent, StyledContent, Stylize}, terminal::{self, Clear, ClearType}, QueueableCommand, Result
+    cursor::MoveTo,
+    execute,
+    style::{ContentStyle, Print, PrintStyledContent, StyledContent, Stylize},
+    terminal::{self, Clear, ClearType},
+    QueueableCommand,
+    Result,
 };
 
 use crate::game::Game;
