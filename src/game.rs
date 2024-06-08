@@ -6,7 +6,7 @@ use rand::{thread_rng, seq::SliceRandom};
 use strum::IntoEnumIterator;
 
 use crate::display::BOARD_DIMENSION;
-use crate::tetromino::*;
+use crate::{debug_println, tetromino::*};
 
 // use crate::debug::*;
 // use crate::debug_println;
@@ -37,6 +37,7 @@ pub struct Game {
     pub combo: i32,
     pub can_hold: bool,
     pub locking: bool,
+    pub lock_reset_count: u8,
     pub end: bool,
 }
 
@@ -57,6 +58,7 @@ impl Game {
             combo: -1,
             can_hold: true,
             locking: false,
+            lock_reset_count: 0,
             end: false,
         };
         game.update_ghost();
@@ -77,7 +79,7 @@ impl Game {
         })
     }
 
-    fn hitting_left(&self, tetromino: &Tetromino) -> bool {
+    pub fn hitting_left(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
             position.0 == 0 ||
             position.1 < BOARD_DIMENSION.1 &&
@@ -85,7 +87,7 @@ impl Game {
         })
     }
 
-    fn hitting_right(&self, tetromino: &Tetromino) -> bool {
+    pub fn hitting_right(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
             position.0 == BOARD_DIMENSION.0 - 1 ||
             position.1 < BOARD_DIMENSION.1 &&
@@ -111,6 +113,7 @@ impl Game {
                         position.0 -= 1;
                     }
                     self.falling.center.0 -= 1;
+                    self.lock_reset_count += 1;
                 }
             },
             ShiftDirection::Right => {
@@ -119,6 +122,7 @@ impl Game {
                         position.0 += 1;
                     }
                     self.falling.center.0 += 1;
+                    self.lock_reset_count += 1;
                 }
             },
             ShiftDirection::Down => {
@@ -127,6 +131,7 @@ impl Game {
                         position.1 -= 1;
                     }
                     self.falling.center.1 -= 1;
+                    self.lock_reset_count = 0;
                 }
                 self.locking = self.hitting_bottom(&self.falling);
             },
@@ -197,7 +202,7 @@ impl Game {
                 self.falling.center.0 -= offset_x;
                 self.falling.center.1 -= offset_y;
                 self.falling.direction = new_direction;
-                self.locking = false;
+                self.lock_reset_count += 1;
                 self.update_ghost();
                 return
             }

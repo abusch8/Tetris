@@ -21,35 +21,39 @@ mod tetromino;
 const TARGET_FRAME_RATE: u64 = 120;
 const LOCK_RESET_LIMIT: u8 = 15;
 
-fn reset_lock_timer(lock_delay: &mut Pin<&mut Sleep>, lock_reset_count: &mut u8) {
-    if *lock_reset_count < LOCK_RESET_LIMIT {
-        *lock_reset_count += 1;
+fn reset_lock_timer(game: &Game, lock_delay: &mut Pin<&mut Sleep>) {
+    if game.lock_reset_count < LOCK_RESET_LIMIT {
         lock_delay.as_mut().reset(Instant::now() + Duration::from_millis(500));
     }
 }
 
-fn event_handler(game: &mut Game, event: Event, lock_delay: &mut Pin<&mut Sleep>, lock_reset_count: &mut u8) -> Result<()> {
+fn event_handler(game: &mut Game, event: Event, lock_delay: &mut Pin<&mut Sleep>) -> Result<()> {
     Ok(match event {
         Event::Key(key) => {
             match key.code {
                 KeyCode::Char('w') | KeyCode::Char('W') | KeyCode::Up => {
                     game.rotate(RotationDirection::Clockwise);
-                    if game.locking { reset_lock_timer(lock_delay, lock_reset_count); }
+                    if game.locking {
+                        reset_lock_timer(&game, lock_delay);
+                    }
                 },
                 KeyCode::Char('a') | KeyCode::Char('A') | KeyCode::Left => {
                     game.shift(ShiftDirection::Left);
-                    if game.locking { reset_lock_timer(lock_delay, lock_reset_count); }
+                    if game.locking && !game.hitting_left(&game.falling) {
+                        reset_lock_timer(&game, lock_delay);
+                    }
                 },
                 KeyCode::Char('s') | KeyCode::Char('S') | KeyCode::Down => {
                     if !game.hitting_bottom(&game.falling) {
                         lock_delay.as_mut().reset(Instant::now() + Duration::from_millis(500));
-                        *lock_reset_count = 0;
                     }
                     game.soft_drop();
                 },
                 KeyCode::Char('d') | KeyCode::Char('D') | KeyCode::Right => {
                     game.shift(ShiftDirection::Right);
-                    if game.locking { reset_lock_timer(lock_delay, lock_reset_count); }
+                    if game.locking && !game.hitting_right(&game.falling) {
+                        reset_lock_timer(&game, lock_delay);
+                    }
                 },
                 KeyCode::Char(' ') => {
                     game.hard_drop();
@@ -84,7 +88,7 @@ async fn run(game: &mut Game) -> Result<()> {
         let lock_delay = sleep(Duration::ZERO);
     }
 
-    let mut lock_reset_count = 0u8;
+    // let mut lock_reset_count = 0u8;
 
     // debug_println!("{}", lock_delay.is_elapsed());
 
@@ -95,19 +99,19 @@ async fn run(game: &mut Game) -> Result<()> {
         select! {
             Some(event) = reader.next().fuse() => {
                 match event {
-                    Ok(event) => event_handler(game, event, &mut lock_delay, &mut lock_reset_count)?,
+                    Ok(event) => event_handler(game, event, &mut lock_delay)?,
                     Err(error) => panic!("{}", error),
                 };
             },
             _ = &mut lock_delay, if game.locking => {
                 // debug_println!("{} {}", debug_lock_start.elapsed().as_millis(), lock_reset_count);
                 game.place();
-                lock_reset_count = 0;
+                // lock_reset_count = 0;
             },
             _ = drop_interval.tick() => {
                 if !game.hitting_bottom(&game.falling) {
                     lock_delay.as_mut().reset(Instant::now() + Duration::from_millis(500));
-                    lock_reset_count = 0;
+                    // lock_reset_count = 0;
                     // debug_lock_start = Instant::now();
                 }
                 game.shift(ShiftDirection::Down);
