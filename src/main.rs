@@ -1,12 +1,15 @@
 use std::{env::args, io::stdout};
 use crossterm::{
-    cursor::{Hide, MoveTo, Show}, event::EventStream, execute, style::Print, terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, SetTitle}, QueueableCommand, Result
+    cursor::{Hide, Show},
+    event::EventStream,
+    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, SetTitle},
+    execute, Result,
 };
+use display::Display;
 use event::handle_event;
 use futures::{stream::StreamExt, FutureExt};
 use tokio::{pin, select, time::{interval, sleep, Duration, Instant}};
 
-use crate::display::{draw, render};
 use crate::game::*;
 
 // use crate::debug::*;
@@ -24,9 +27,10 @@ pub const LOCK_DURATION: Duration = Duration::from_millis(500);
 
 async fn run(game: &mut Game) -> Result<()> {
     let mut reader = EventStream::new();
-    let mut stdout = stdout();
 
-    draw()?;
+    let display = &mut Display::new()?;
+
+    display.draw()?;
 
     let mut render_interval = interval(Duration::from_nanos(1_000_000_000 / TARGET_FRAME_RATE));
 
@@ -44,7 +48,7 @@ async fn run(game: &mut Game) -> Result<()> {
         select! {
             Some(event) = reader.next().fuse() => {
                 match event {
-                    Ok(event) => handle_event(game, event, &mut lock_delay)?,
+                    Ok(event) => handle_event(event, game, display, &mut lock_delay)?,
                     Err(error) => panic!("{}", error),
                 };
             },
@@ -58,13 +62,11 @@ async fn run(game: &mut Game) -> Result<()> {
                 game.shift(ShiftDirection::Down);
             },
             _ = render_interval.tick() => {
-                render(game)?;
+                display.render(game)?;
                 debug_frame += 1;
             },
             _ = debug_interval.tick() => {
-                stdout
-                    .queue(MoveTo(0, 0))?
-                    .queue(Print(format!("{} fps", debug_frame)))?;
+                display.render_debug_info(debug_frame)?;
                 debug_frame = 0;
             },
             _ = async {}, if game.end => {

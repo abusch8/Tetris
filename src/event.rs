@@ -5,7 +5,7 @@ use crossterm::{
 };
 use tokio::time::{Instant, Sleep};
 
-use crate::{display::draw, Game, RotationDirection, ShiftDirection, LOCK_DURATION, LOCK_RESET_LIMIT};
+use crate::{display::Display, Game, RotationDirection, ShiftDirection, LOCK_DURATION, LOCK_RESET_LIMIT};
 
 fn reset_lock_timer(game: &Game, lock_delay: &mut Pin<&mut Sleep>) {
     if game.lock_reset_count < LOCK_RESET_LIMIT {
@@ -13,7 +13,7 @@ fn reset_lock_timer(game: &Game, lock_delay: &mut Pin<&mut Sleep>) {
     }
 }
 
-pub fn handle_event(game: &mut Game, event: Event, lock_delay: &mut Pin<&mut Sleep>) -> Result<()> {
+pub fn handle_event(event: Event, game: &mut Game, display: &mut Display, lock_delay: &mut Pin<&mut Sleep>) -> Result<()> {
     Ok(match event {
         Event::Key(key) => {
             match key.code {
@@ -54,7 +54,7 @@ pub fn handle_event(game: &mut Game, event: Event, lock_delay: &mut Pin<&mut Sle
                 _ => (),
             }
         },
-        Event::Resize(_, _) => draw()?,
+        Event::Resize(_, _) => display.draw()?,
         _ => (),
     })
 }
