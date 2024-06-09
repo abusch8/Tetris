@@ -1,16 +1,14 @@
 use::std::io::{stdout, Write};
 use crossterm::{
+    execute, QueueableCommand, Result,
     cursor::MoveTo,
-    execute,
     style::{ContentStyle, Print, PrintStyledContent, StyledContent, Stylize},
     terminal::{self, Clear, ClearType},
-    QueueableCommand,
-    Result,
 };
 
 use crate::game::Game;
 
-use crate::debug_println;
+// use crate::debug_println;
 
 pub const BOARD_DIMENSION: Dimension = (10, 20);
 

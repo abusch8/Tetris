@@ -6,7 +6,7 @@ use rand::{thread_rng, seq::SliceRandom};
 use strum::IntoEnumIterator;
 
 use crate::display::BOARD_DIMENSION;
-use crate::{debug_println, tetromino::*};
+use crate::tetromino::*;
 
 // use crate::debug::*;
 // use crate::debug_println;
@@ -306,4 +306,3 @@ impl Game {
         }
     }
 }
-

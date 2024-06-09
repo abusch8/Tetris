@@ -1,12 +1,13 @@
-use std::{env::args, io::stdout, pin::Pin};
+use std::{env::args, io::stdout};
 use crossterm::{
     Result, execute,
     cursor::{Hide, Show},
     terminal::{Clear, ClearType, SetTitle, enable_raw_mode, disable_raw_mode},
-    event::{Event, KeyCode, EventStream},
+    event::EventStream,
 };
+use event::event_handler;
 use futures::{stream::StreamExt, FutureExt};
-use tokio::{pin, select, time::{interval, sleep, Duration, Instant, Sleep}};
+use tokio::{pin, select, time::{interval, sleep, Duration, Instant}};
 
 use crate::display::{draw, render};
 use crate::game::*;
@@ -15,65 +16,14 @@ use crate::debug::*;
 
 mod debug;
 mod display;
+mod event;
 mod game;
 mod tetromino;
 
 const TARGET_FRAME_RATE: u64 = 1000;
-const LOCK_RESET_LIMIT: u8 = 15;
 
-fn reset_lock_timer(game: &Game, lock_delay: &mut Pin<&mut Sleep>) {
-    if game.lock_reset_count < LOCK_RESET_LIMIT {
-        lock_delay.as_mut().reset(Instant::now() + Duration::from_millis(500));
-    }
-}
-
-fn event_handler(game: &mut Game, event: Event, lock_delay: &mut Pin<&mut Sleep>) -> Result<()> {
-    Ok(match event {
-        Event::Key(key) => {
-            match key.code {
-                KeyCode::Char('w') | KeyCode::Char('W') | KeyCode::Up => {
-                    game.rotate(RotationDirection::Clockwise);
-                    if game.locking {
-                        reset_lock_timer(&game, lock_delay);
-                    }
-                },
-                KeyCode::Char('a') | KeyCode::Char('A') | KeyCode::Left => {
-                    game.shift(ShiftDirection::Left);
-                    if game.locking && !game.hitting_left(&game.falling) {
-                        reset_lock_timer(&game, lock_delay);
-                    }
-                },
-                KeyCode::Char('s') | KeyCode::Char('S') | KeyCode::Down => {
-                    if !game.hitting_bottom(&game.falling) {
-                        lock_delay.as_mut().reset(Instant::now() + Duration::from_millis(500));
-                    }
-                    game.soft_drop();
-                },
-                KeyCode::Char('d') | KeyCode::Char('D') | KeyCode::Right => {
-                    game.shift(ShiftDirection::Right);
-                    if game.locking && !game.hitting_right(&game.falling) {
-                        reset_lock_timer(&game, lock_delay);
-                    }
-                },
-                KeyCode::Char(' ') => {
-                    game.hard_drop();
-                },
-                KeyCode::Char('z') | KeyCode::Char('Z') => {
-                    game.rotate(RotationDirection::CounterClockwise);
-                },
-                KeyCode::Char('c') | KeyCode::Char('C') => {
-                    game.hold();
-                },
-                KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
-                    game.end = true;
-                },
-                _ => (),
-            }
-        },
-        Event::Resize(_, _) => draw()?,
-        _ => (),
-    })
-}
+pub const LOCK_RESET_LIMIT: u8 = 15;
+pub const LOCK_DURATION: Duration = Duration::from_millis(500);
 
 async fn run(game: &mut Game) -> Result<()> {
     let mut reader = EventStream::new();
@@ -82,21 +32,14 @@ async fn run(game: &mut Game) -> Result<()> {
 
     let mut render_interval = interval(Duration::from_nanos(1_000_000_000 / TARGET_FRAME_RATE));
 
-    let drop_rate = (0.8 - ((game.level - 1) as f32 * 0.007)).powf((game.level - 1) as f32);
-
+    let drop_rate = (0.8 - (game.level - 1) as f32 * 0.007).powf((game.level - 1) as f32);
     let mut drop_interval = interval(Duration::from_nanos((drop_rate * 1_000_000_000f32) as u64));
-
-    let mut debug_interval = interval(Duration::from_secs(1));
 
     pin! {
         let lock_delay = sleep(Duration::ZERO);
     }
 
-    // let mut lock_reset_count = 0u8;
-
-    // debug_println!("{}", lock_delay.is_elapsed());
-
-    // let mut debug_lock_start = Instant::now();
+    let mut debug_interval = interval(Duration::from_secs(1));
     let mut debug_frame = 0u64;
 
     Ok(loop {
@@ -108,15 +51,11 @@ async fn run(game: &mut Game) -> Result<()> {
                 };
             },
             _ = &mut lock_delay, if game.locking => {
-                // debug_println!("{} {}", debug_lock_start.elapsed().as_millis(), lock_reset_count);
                 game.place();
-                // lock_reset_count = 0;
             },
             _ = drop_interval.tick() => {
                 if !game.hitting_bottom(&game.falling) {
-                    lock_delay.as_mut().reset(Instant::now() + Duration::from_millis(500));
-                    // lock_reset_count = 0;
-                    // debug_lock_start = Instant::now();
+                    lock_delay.as_mut().reset(Instant::now() + LOCK_DURATION);
                 }
                 game.shift(ShiftDirection::Down);
             },
