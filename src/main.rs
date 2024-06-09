@@ -1,9 +1,6 @@
 use std::{env::args, io::stdout};
 use crossterm::{
-    Result, execute,
-    cursor::{Hide, Show},
-    terminal::{Clear, ClearType, SetTitle, enable_raw_mode, disable_raw_mode},
-    event::EventStream,
+    cursor::{Hide, MoveTo, Show}, event::EventStream, execute, style::Print, terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, SetTitle}, QueueableCommand, Result
 };
 use event::handle_event;
 use futures::{stream::StreamExt, FutureExt};
@@ -12,7 +9,7 @@ use tokio::{pin, select, time::{interval, sleep, Duration, Instant}};
 use crate::display::{draw, render};
 use crate::game::*;
 
-use crate::debug::*;
+// use crate::debug::*;
 
 mod debug;
 mod display;
@@ -20,13 +17,14 @@ mod event;
 mod game;
 mod tetromino;
 
-const TARGET_FRAME_RATE: u64 = 1000;
+const TARGET_FRAME_RATE: u64 = 1_000;
 
 pub const LOCK_RESET_LIMIT: u8 = 15;
 pub const LOCK_DURATION: Duration = Duration::from_millis(500);
 
 async fn run(game: &mut Game) -> Result<()> {
     let mut reader = EventStream::new();
+    let mut stdout = stdout();
 
     draw()?;
 
@@ -64,7 +62,9 @@ async fn run(game: &mut Game) -> Result<()> {
                 debug_frame += 1;
             },
             _ = debug_interval.tick() => {
-                debug_println!("FPS: {}", debug_frame);
+                stdout
+                    .queue(MoveTo(0, 0))?
+                    .queue(Print(format!("{} fps", debug_frame)))?;
                 debug_frame = 0;
             },
             _ = async {}, if game.end => {
@@ -81,7 +81,7 @@ async fn main() -> Result<()> {
     let args = args().collect::<Vec<String>>();
     let level = if args.len() == 2 { args[1].parse::<u32>().unwrap() } else { 1 };
 
-    let debug_window = DebugWindow::new();
+    // let debug_window = DebugWindow::new();
 
     enable_raw_mode()?;
     execute!(stdout, Hide, Clear(ClearType::All), SetTitle("TETRIS"))?;
@@ -93,7 +93,7 @@ async fn main() -> Result<()> {
     execute!(stdout, Show, Clear(ClearType::All))?;
     println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.score, game.level, game.lines);
 
-    debug_window.close();
+    // debug_window.close();
 
     Ok(())
 }
