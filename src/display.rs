@@ -96,8 +96,7 @@ impl Display {
     fn render_board(&mut self, game: &Game) -> Result<&mut Self> {
 
         fn position_in_view(position: &Dimension, view: &Dimension, offset_x: i32) -> bool {
-            BOARD_DIMENSION.1 - position.1 == view.1 &&
-            (
+            BOARD_DIMENSION.1 - position.1 == view.1 && (
                 (position.0 + 1) * 2 + offset_x == view.0 ||
                 (position.0 + 1) * 2 + offset_x - 1 == view.0
             )
