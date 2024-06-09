@@ -5,7 +5,7 @@ use crossterm::{
     terminal::{Clear, ClearType, SetTitle, enable_raw_mode, disable_raw_mode},
     event::EventStream,
 };
-use event::event_handler;
+use event::handle_event;
 use futures::{stream::StreamExt, FutureExt};
 use tokio::{pin, select, time::{interval, sleep, Duration, Instant}};
 
@@ -46,7 +46,7 @@ async fn run(game: &mut Game) -> Result<()> {
         select! {
             Some(event) = reader.next().fuse() => {
                 match event {
-                    Ok(event) => event_handler(game, event, &mut lock_delay)?,
+                    Ok(event) => handle_event(game, event, &mut lock_delay)?,
                     Err(error) => panic!("{}", error),
                 };
             },
