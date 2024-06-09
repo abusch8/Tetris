@@ -21,6 +21,7 @@ mod game;
 mod tetromino;
 
 const TARGET_FRAME_RATE: u64 = 1_000;
+const DISPLAY_FRAME_RATE: bool = true;
 
 pub const LOCK_RESET_LIMIT: u8 = 15;
 pub const LOCK_DURATION: Duration = Duration::from_millis(500);
@@ -35,13 +36,15 @@ async fn run(game: &mut Game) -> Result<()> {
     let mut render_interval = interval(Duration::from_nanos(1_000_000_000 / TARGET_FRAME_RATE));
 
     let drop_rate = (0.8 - (game.level - 1) as f32 * 0.007).powf((game.level - 1) as f32);
-    let mut drop_interval = interval(Duration::from_nanos((drop_rate * 1_000_000_000f32) as u64));
+    let drop_duration = Duration::from_nanos((drop_rate * 1_000_000_000f32) as u64);
+
+    let mut drop_interval = interval(if drop_duration.is_zero() { Duration::from_nanos(1) } else { drop_duration });
 
     pin! {
         let lock_delay = sleep(Duration::ZERO);
     }
 
-    let mut debug_interval = interval(Duration::from_secs(1));
+    let mut debug_frame_interval = interval(Duration::from_secs(1));
     let mut debug_frame = 0u64;
 
     Ok(loop {
@@ -63,9 +66,9 @@ async fn run(game: &mut Game) -> Result<()> {
             },
             _ = render_interval.tick() => {
                 display.render(game)?;
-                debug_frame += 1;
+                debug_frame += DISPLAY_FRAME_RATE as u64;
             },
-            _ = debug_interval.tick() => {
+            _ = debug_frame_interval.tick(), if DISPLAY_FRAME_RATE => {
                 display.render_debug_info(debug_frame)?;
                 debug_frame = 0;
             },

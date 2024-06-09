@@ -100,7 +100,7 @@ impl Display {
         fn position_in_view(position: &Dimension, view: &Dimension, offset_x: i32) -> bool {
             BOARD_DIMENSION.1 - position.1 == view.1 && (
                 (position.0 + 1) * 2 + offset_x == view.0 ||
-                (position.0 + 1) * 2 + offset_x - 1 == view.0
+                (position.0 + 1) * 2 + offset_x == view.0 + 1
             )
         }
 
@@ -148,6 +148,7 @@ impl Display {
                                 " "
                             }
                         )
+
                     })()))?;
             }
         }
@@ -208,6 +209,8 @@ impl Display {
 
     pub fn render_debug_info(&mut self, debug_frame: u64) -> Result<&mut Self> {
         self.stdout
+            .queue(MoveTo(0, 0))?
+            .queue(Print("        "))?
             .queue(MoveTo(0, 0))?
             .queue(Print(format!("{} fps", debug_frame)))?;
 

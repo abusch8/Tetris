@@ -6,7 +6,7 @@ use rand::{thread_rng, seq::SliceRandom};
 use strum::IntoEnumIterator;
 
 use crate::display::BOARD_DIMENSION;
-use crate::tetromino::*;
+use crate::{tetromino::*, LOCK_RESET_LIMIT};
 
 // use crate::debug::*;
 // use crate::debug_println;
@@ -106,6 +106,9 @@ impl Game {
     }
 
     pub fn shift(&mut self, direction: ShiftDirection) {
+        if self.lock_reset_count == LOCK_RESET_LIMIT {
+            self.place()
+        }
         match direction {
             ShiftDirection::Left => {
                 if !self.hitting_left(&self.falling) {
@@ -247,6 +250,9 @@ impl Game {
     }
 
     pub fn place(&mut self) {
+        if !self.hitting_bottom(&self.falling) {
+            return
+        }
         for position in self.falling.shape.iter() {
             if position.1 > BOARD_DIMENSION.1 - 1 {
                 self.end = true;
