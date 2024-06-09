@@ -20,7 +20,7 @@ mod event;
 mod game;
 mod tetromino;
 
-const TARGET_FRAME_RATE: u64 = 1_000;
+const MAX_FRAME_RATE: u64 = 0; // Set to 0 for unlimited
 const DISPLAY_FRAME_RATE: bool = true;
 
 pub const LOCK_RESET_LIMIT: u8 = 15;
@@ -33,12 +33,22 @@ async fn run(game: &mut Game) -> Result<()> {
 
     display.draw()?;
 
-    let mut render_interval = interval(Duration::from_nanos(1_000_000_000 / TARGET_FRAME_RATE));
+    let frame_duration = Duration::from_nanos(if MAX_FRAME_RATE > 0 {
+        1_000_000_000 / MAX_FRAME_RATE as u64
+    } else {
+        1
+    });
+
+    let mut render_interval = interval(frame_duration);
 
     let drop_rate = (0.8 - (game.level - 1) as f32 * 0.007).powf((game.level - 1) as f32);
     let drop_duration = Duration::from_nanos((drop_rate * 1_000_000_000f32) as u64);
 
-    let mut drop_interval = interval(if drop_duration.is_zero() { Duration::from_nanos(1) } else { drop_duration });
+    let mut drop_interval = interval(if drop_duration.is_zero() {
+        Duration::from_nanos(1)
+    } else {
+        drop_duration
+    });
 
     pin! {
         let lock_delay = sleep(Duration::ZERO);
