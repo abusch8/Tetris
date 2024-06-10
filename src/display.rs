@@ -80,7 +80,7 @@ impl Display {
         self.stdout
             .queue(MoveTo(self.board_x.0 + (self.board_x.1 - self.board_x.0) / 2 - 3, 0))?
             .queue(PrintStyledContent("TETRIS".bold()))?
-            .queue(MoveTo(self.board_x.0 + 1, 2))?
+            .queue(MoveTo(self.board_x.1 + 1, 2))?
             .queue(Print("NEXT:"))?
             .queue(MoveTo(self.board_x.0 - 9, 2))?
             .queue(Print("HOLD:"))?
