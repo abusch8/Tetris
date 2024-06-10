@@ -100,21 +100,19 @@ impl Display {
         Ok(self.stdout.flush()?)
     }
 
-    fn position_in_view(&self, position: &Dimension, view: &Dimension) -> bool {
-        self.board_y.1 as i32 - 2 - position.1 == view.1 && (
-            self.board_x.0 as i32 + (position.0 + 1) * 2 == view.0 ||
-            self.board_x.0 as i32 + (position.0 + 1) * 2 == view.0 + 1
-        )
-    }
-
-    fn tetromino_in_view(&self, tetromino: &Tetromino, view: &Dimension) -> bool {
-        tetromino.shape.iter().any(|position| self.position_in_view(position, view))
+    fn tetromino_at_position(&self, tetromino: &Tetromino, pos: &Dimension) -> bool {
+        tetromino.shape.iter().any(|(x, y)| {
+            self.board_y.1 as i32 - 2 - y == pos.1 && (
+                self.board_x.0 as i32 + (x + 1) * 2 == pos.0 ||
+                self.board_x.0 as i32 + (x + 1) * 2 == pos.0 + 1
+            )
+        })
     }
 
     fn render_board(&mut self, game: &Game) -> Result<&mut Self> {
         for x in self.board_x.0 + 1..self.board_x.1 - 1 {
             for y in self.board_y.0 + 1..self.board_y.1 - 1 {
-                let view = &(x as i32, y as i32);
+                let pos = &(x as i32, y as i32);
 
                 let mut content = StyledContent::new(ContentStyle::new(),
                     if x % 2 != self.terminal_size.0 / 2 % 2 {
@@ -124,23 +122,23 @@ impl Display {
                     }
                 );
 
-                if self.tetromino_in_view(&game.falling, view) {
+                if let Some(ghost) = &game.ghost {
+                    if self.tetromino_at_position(ghost, pos) {
+                        content = "░".with(game.falling.color);
+                    }
+                }
+
+                if self.tetromino_at_position(&game.falling, pos) {
                     content = if game.locking {
                         "▓".with(game.falling.color)
                     } else {
                          " ".on(game.falling.color)
-                    }
-                };
-
-                if let Some(ghost) = &game.ghost {
-                    if self.tetromino_in_view(ghost, view) {
-                        content = "░".with(game.falling.color)
-                    }
-                };
+                    };
+                }
 
                 if let Some(color) = game.stack[(self.board_y.1 - 2 - y) as usize][((x - self.board_x.0 - 1) / 2) as usize] {
-                    content = " ".on(color)
-                };
+                    content = " ".on(color);
+                }
 
                 self.stdout
                     .queue(MoveTo(x, y))?
