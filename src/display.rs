@@ -7,13 +7,15 @@ use crossterm::{
     terminal::{self, Clear, ClearType},
 };
 
-use crate::{game::Game, tetromino::Tetromino};
+use crate::{debug_println, game::Game, tetromino::Tetromino};
 
 // use crate::debug_println;
 
 pub type Dimension = (i32, i32);
 
 pub const BOARD_DIMENSION: Dimension = (10, 20);
+
+pub const CLEAR: &str = "        ";
 
 pub struct Display {
     pub stdout: Stdout,
@@ -28,15 +30,15 @@ impl Display {
 
         let terminal_size = terminal::size().unwrap();
 
-        let board_top = 0;
-        let board_bottom = BOARD_DIMENSION.1 as u16 + 2;
+        let board_x = (
+            terminal_size.0 / BOARD_DIMENSION.0 as u16 * 2 / 2,
+            terminal_size.0 / BOARD_DIMENSION.0 as u16 + BOARD_DIMENSION.0 as u16 * 2 + 2,
+        );
 
-        let board_y = (board_top, board_bottom);
-
-        let board_left = terminal_size.0 / BOARD_DIMENSION.0 as u16 * 2 / 2;
-        let board_right = board_left + BOARD_DIMENSION.0 as u16 * 2 + 2;
-
-        let board_x = (board_left, board_right);
+        let board_y = (
+            0,
+            BOARD_DIMENSION.1 as u16 + 2,
+        );
 
         Ok(Display { stdout, terminal_size, board_x, board_y })
     }
@@ -46,10 +48,10 @@ impl Display {
 
         self.terminal_size = terminal::size().unwrap();
 
-        let board_left = self.terminal_size.0 / 2 - BOARD_DIMENSION.0 as u16 * 2 / 2;
-        let board_right = board_left + BOARD_DIMENSION.0 as u16 * 2 + 2;
-
-        self.board_x = (board_left, board_right);
+        self.board_x = (
+            self.terminal_size.0 / 2 - BOARD_DIMENSION.0 as u16 * 2 / 2,
+            self.terminal_size.0 / 2 - BOARD_DIMENSION.0 as u16 + BOARD_DIMENSION.0 as u16 * 2 + 2,
+        );
 
         for x in self.board_x.0..self.board_x.1 {
             for y in self.board_y.0..self.board_y.1 {
@@ -98,61 +100,51 @@ impl Display {
         Ok(self.stdout.flush()?)
     }
 
+    fn position_in_view(&self, position: &Dimension, view: &Dimension) -> bool {
+        self.board_y.1 as i32 - 2 - position.1 == view.1 && (
+            self.board_x.0 as i32 + (position.0 + 1) * 2 == view.0 ||
+            self.board_x.0 as i32 + (position.0 + 1) * 2 == view.0 + 1
+        )
+    }
+
+    fn tetromino_in_view(&self, tetromino: &Tetromino, view: &Dimension) -> bool {
+        tetromino.shape.iter().any(|position| self.position_in_view(position, view))
+    }
+
     fn render_board(&mut self, game: &Game) -> Result<&mut Self> {
-
-        fn position_in_view(position: &Dimension, view: &Dimension, offset_x: i32) -> bool {
-            BOARD_DIMENSION.1 - position.1 == view.1 && (
-                (position.0 + 1) * 2 + offset_x == view.0 ||
-                (position.0 + 1) * 2 + offset_x == view.0 + 1
-            )
-        }
-
-        fn tetromino_in_view(tetromino: &Tetromino, view: &Dimension, offset_x: i32) -> bool {
-            tetromino.shape.iter().any(|position| position_in_view(position, view, offset_x))
-        }
-
         for x in self.board_x.0 + 1..self.board_x.1 - 1 {
             for y in self.board_y.0 + 1..self.board_y.1 - 1 {
+                let view = &(x as i32, y as i32);
+
+                let mut content = StyledContent::new(ContentStyle::new(),
+                    if x % 2 != self.terminal_size.0 / 2 % 2 {
+                        "."
+                    } else {
+                        " "
+                    }
+                );
+
+                if self.tetromino_in_view(&game.falling, view) {
+                    content = if game.locking {
+                        "▓".with(game.falling.color)
+                    } else {
+                         " ".on(game.falling.color)
+                    }
+                };
+
+                if let Some(ghost) = &game.ghost {
+                    if self.tetromino_in_view(ghost, view) {
+                        content = "░".with(game.falling.color)
+                    }
+                };
+
+                if let Some(color) = game.stack[(self.board_y.1 - 2 - y) as usize][((x - self.board_x.0 - 1) / 2) as usize] {
+                    content = " ".on(color)
+                };
+
                 self.stdout
                     .queue(MoveTo(x, y))?
-                    .queue(PrintStyledContent((|| {
-
-                        let view = &(x as i32, y as i32);
-                        let offset_x = self.board_x.0 as i32;
-
-                        if tetromino_in_view(&game.falling, view, offset_x) {
-                            return if game.locking {
-                                "▓".with(game.falling.color)
-                            } else {
-                                 " ".on(game.falling.color)
-                            }
-                        }
-
-                        if let Some(ghost) = &game.ghost {
-                            if tetromino_in_view(ghost, view, offset_x) {
-                                return "░".with(game.falling.color)
-                            }
-                        }
-
-                        for (i, row) in game.stack.iter().enumerate() {
-                            for (j, color) in row.iter().enumerate() {
-                                if let Some(color) = color {
-                                    if position_in_view(&(j as i32, i as i32), view, offset_x) {
-                                        return " ".on(*color)
-                                    }
-                                }
-                            }
-                        }
-
-                        StyledContent::new(ContentStyle::new(),
-                            if x % 2 != self.terminal_size.0 / 2 % 2 {
-                                "."
-                            } else {
-                                " "
-                            }
-                        )
-
-                    })()))?;
+                    .queue(PrintStyledContent(content))?;
             }
         }
 
@@ -163,10 +155,10 @@ impl Display {
         if let Some(holding) = &game.holding {
             self.stdout
                 .queue(MoveTo(self.board_x.0 - 9, 4))?
-                .queue(Print("        "))?
+                .queue(Print(CLEAR))?
                 .queue(MoveTo(self.board_x.0 - 9, 5))?
-                .queue(Print("        "))?;
-            for position in holding.shape.iter().map(|(x, y)| (*x as u16, *y as u16)) {
+                .queue(Print(CLEAR))?;
+            for position in holding.shape.iter().map(|&(x, y)| (x as u16, y as u16)) {
                 self.stdout
                     .queue(MoveTo((position.0 - 3) * 2 + self.board_x.0 - 9, self.board_y.1 - position.1 + 1))?
                     .queue(PrintStyledContent(" ".on(holding.color)))?
@@ -182,10 +174,10 @@ impl Display {
         for (i, tetromino) in game.next.iter().enumerate() {
             self.stdout
                 .queue(MoveTo(self.board_x.1 + 1, 4 + (i as u16 * 3)))?
-                .queue(Print("        "))?
+                .queue(Print(CLEAR))?
                 .queue(MoveTo(self.board_x.1 + 1, 5 + (i as u16 * 3)))?
-                .queue(Print("        "))?;
-            for position in tetromino.shape.iter().map(|(x, y)| (*x as u16, *y as u16)) {
+                .queue(Print(CLEAR))?;
+            for position in tetromino.shape.iter().map(|&(x, y)| (x as u16, y as u16)) {
                 self.stdout
                     .queue(MoveTo((position.0 - 3) * 2 + self.board_x.1 + 2, self.board_y.1 - position.1 + 1 + (i as u16 * 3)))?
                     .queue(PrintStyledContent(" ".on(tetromino.color)))?
@@ -213,7 +205,7 @@ impl Display {
     pub fn render_debug_info(&mut self, debug_frame: u64) -> Result<&mut Self> {
         self.stdout
             .queue(MoveTo(0, 0))?
-            .queue(Print("        "))?
+            .queue(Print(CLEAR))?
             .queue(MoveTo(0, 0))?
             .queue(Print(format!("{} fps", debug_frame)))?;
 
