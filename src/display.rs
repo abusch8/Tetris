@@ -136,7 +136,10 @@ impl Display {
                     };
                 }
 
-                if let Some(color) = game.stack[(self.board_y.1 - 2 - y) as usize][((x - self.board_x.0 - 1) / 2) as usize] {
+                let i = (self.board_y.1 - 2 - y) as usize;
+                let j = ((x - self.board_x.0 - 1) / 2) as usize;
+
+                if let Some(color) = game.stack[i][j] {
                     content = " ".on(color);
                 }
 
