@@ -11,17 +11,15 @@ use crate::{game::Game, tetromino::Tetromino};
 
 // use crate::debug_println;
 
-pub const BOARD_DIMENSION: Dimension = (10, 20);
-
 pub type Dimension = (i32, i32);
 
-const BOARD_WIDTH: u16 = BOARD_DIMENSION.0 as u16 * 2 + 2;
-const BOARD_HEIGHT: u16 = BOARD_DIMENSION.1 as u16 + 2;
+pub const BOARD_DIMENSION: Dimension = (10, 20);
 
 pub struct Display {
     pub stdout: Stdout,
     pub terminal_size: (u16, u16),
-    pub board_width: (u16, u16),
+    pub board_x: (u16, u16),
+    pub board_y: (u16, u16),
 }
 
 impl Display {
@@ -30,12 +28,17 @@ impl Display {
 
         let terminal_size = terminal::size().unwrap();
 
-        let board_width_start = terminal_size.0 / 2 - BOARD_WIDTH / 2;
-        let board_width_end = board_width_start + BOARD_WIDTH;
+        let board_top = 0;
+        let board_bottom = BOARD_DIMENSION.1 as u16 + 2;
 
-        let board_width = (board_width_start, board_width_end);
+        let board_y = (board_top, board_bottom);
 
-        Ok(Display { stdout, terminal_size, board_width })
+        let board_left = terminal_size.0 / BOARD_DIMENSION.0 as u16 * 2 / 2;
+        let board_right = board_left + BOARD_DIMENSION.0 as u16 * 2 + 2;
+
+        let board_x = (board_left, board_right);
+
+        Ok(Display { stdout, terminal_size, board_x, board_y })
     }
 
     pub fn draw(&mut self) -> Result<()> {
@@ -43,27 +46,27 @@ impl Display {
 
         self.terminal_size = terminal::size().unwrap();
 
-        let board_width_start = self.terminal_size.0 / 2 - BOARD_WIDTH / 2;
-        let board_width_end = board_width_start + BOARD_WIDTH;
+        let board_left = self.terminal_size.0 / 2 - BOARD_DIMENSION.0 as u16 * 2 / 2;
+        let board_right = board_left + BOARD_DIMENSION.0 as u16 * 2 + 2;
 
-        self.board_width = (board_width_start, board_width_end);
+        self.board_x = (board_left, board_right);
 
-        for x in self.board_width.0..self.board_width.1 {
-            for y in 0..BOARD_HEIGHT {
+        for x in self.board_x.0..self.board_x.1 {
+            for y in self.board_y.0..self.board_y.1 {
                 self.stdout
                     .queue(MoveTo(x, y))?
                     .queue(Print(
-                        if x == self.board_width.0 && y == 0 {
+                        if x == self.board_x.0 && y == 0 {
                             "╔"
-                        } else if x == self.board_width.0 && y == BOARD_HEIGHT - 1 {
+                        } else if x == self.board_x.0 && y == self.board_y.1 - 1 {
                             "╚"
-                        } else if x == self.board_width.1 - 1 && y == 0 {
+                        } else if x == self.board_x.1 - 1 && y == self.board_y.0 {
                             "╗"
-                        } else if x == self.board_width.1 - 1 && y == BOARD_HEIGHT - 1 {
+                        } else if x == self.board_x.1 - 1 && y == self.board_y.1 - 1 {
                             "╝"
-                        } else if x == self.board_width.0 || x == self.board_width.1 - 1 {
+                        } else if x == self.board_x.0 || x == self.board_x.1 - 1 {
                             "║"
-                        } else if y == 0 || y == BOARD_HEIGHT - 1 {
+                        } else if y == self.board_y.0 || y == self.board_y.1 - 1 {
                             "═"
                         } else if x % 2 != self.terminal_size.0 / 2 % 2 {
                             "."
@@ -75,11 +78,11 @@ impl Display {
         }
 
         self.stdout
-            .queue(MoveTo(board_width_start + 8, 0))?
+            .queue(MoveTo(self.board_x.0 + (self.board_x.1 - self.board_x.0) / 2 - 3, 0))?
             .queue(PrintStyledContent("TETRIS".bold()))?
-            .queue(MoveTo(board_width_end + 1, 2))?
+            .queue(MoveTo(self.board_x.0 + 1, 2))?
             .queue(Print("NEXT:"))?
-            .queue(MoveTo(board_width_start - 9, 2))?
+            .queue(MoveTo(self.board_x.0 - 9, 2))?
             .queue(Print("HOLD:"))?
             .queue(MoveTo(0, 0))?;
 
@@ -108,14 +111,14 @@ impl Display {
             tetromino.shape.iter().any(|position| position_in_view(position, view, offset_x))
         }
 
-        for x in self.board_width.0 + 1..self.board_width.1 - 1 {
-            for y in 1..BOARD_HEIGHT - 1 {
+        for x in self.board_x.0 + 1..self.board_x.1 - 1 {
+            for y in self.board_y.0 + 1..self.board_y.1 - 1 {
                 self.stdout
                     .queue(MoveTo(x, y))?
                     .queue(PrintStyledContent((|| {
 
                         let view = &(x as i32, y as i32);
-                        let offset_x = self.board_width.0 as i32;
+                        let offset_x = self.board_x.0 as i32;
 
                         if tetromino_in_view(&game.falling, view, offset_x) {
                             return if game.locking {
@@ -159,15 +162,15 @@ impl Display {
     fn render_hold(&mut self, game: &Game) -> Result<&mut Self> {
         if let Some(holding) = &game.holding {
             self.stdout
-                .queue(MoveTo(self.board_width.0 - 9, 4))?
+                .queue(MoveTo(self.board_x.0 - 9, 4))?
                 .queue(Print("        "))?
-                .queue(MoveTo(self.board_width.0 - 9, 5))?
+                .queue(MoveTo(self.board_x.0 - 9, 5))?
                 .queue(Print("        "))?;
             for position in holding.shape.iter().map(|(x, y)| (*x as u16, *y as u16)) {
                 self.stdout
-                    .queue(MoveTo((position.0 - 3) * 2 + self.board_width.0 - 9, BOARD_HEIGHT - position.1 + 1))?
+                    .queue(MoveTo((position.0 - 3) * 2 + self.board_x.0 - 9, self.board_y.1 - position.1 + 1))?
                     .queue(PrintStyledContent(" ".on(holding.color)))?
-                    .queue(MoveTo((position.0 - 3) * 2 + self.board_width.0 - 8, BOARD_HEIGHT - position.1 + 1))?
+                    .queue(MoveTo((position.0 - 3) * 2 + self.board_x.0 - 8, self.board_y.1 - position.1 + 1))?
                     .queue(PrintStyledContent(" ".on(holding.color)))?;
             }
         }
@@ -178,15 +181,15 @@ impl Display {
     fn render_next(&mut self, game: &Game) -> Result<&mut Self> {
         for (i, tetromino) in game.next.iter().enumerate() {
             self.stdout
-                .queue(MoveTo(self.board_width.1 + 1, 4 + (i as u16 * 3)))?
+                .queue(MoveTo(self.board_x.1 + 1, 4 + (i as u16 * 3)))?
                 .queue(Print("        "))?
-                .queue(MoveTo(self.board_width.1 + 1, 5 + (i as u16 * 3)))?
+                .queue(MoveTo(self.board_x.1 + 1, 5 + (i as u16 * 3)))?
                 .queue(Print("        "))?;
             for position in tetromino.shape.iter().map(|(x, y)| (*x as u16, *y as u16)) {
                 self.stdout
-                    .queue(MoveTo((position.0 - 3) * 2 + self.board_width.1 + 2, BOARD_HEIGHT - position.1 + 1 + (i as u16 * 3)))?
+                    .queue(MoveTo((position.0 - 3) * 2 + self.board_x.1 + 2, self.board_y.1 - position.1 + 1 + (i as u16 * 3)))?
                     .queue(PrintStyledContent(" ".on(tetromino.color)))?
-                    .queue(MoveTo((position.0 - 3) * 2 + self.board_width.1 + 1, BOARD_HEIGHT - position.1 + 1 + (i as u16 * 3)))?
+                    .queue(MoveTo((position.0 - 3) * 2 + self.board_x.1 + 1, self.board_y.1 - position.1 + 1 + (i as u16 * 3)))?
                     .queue(PrintStyledContent(" ".on(tetromino.color)))?;
             }
         }
@@ -196,11 +199,11 @@ impl Display {
 
     fn render_stats(&mut self, game: &Game) -> Result<&mut Self> {
         self.stdout
-            .queue(MoveTo(self.board_width.1 + 1, 17))?
+            .queue(MoveTo(self.board_x.1 + 1, 17))?
             .queue(Print(format!("SCORE: {}", game.score)))?
-            .queue(MoveTo(self.board_width.1 + 1, 18))?
+            .queue(MoveTo(self.board_x.1 + 1, 18))?
             .queue(Print(format!("LEVEL: {}", game.level)))?
-            .queue(MoveTo(self.board_width.1 + 1, 19))?
+            .queue(MoveTo(self.board_x.1 + 1, 19))?
             .queue(Print(format!("LINES: {}", game.lines)))?
             .queue(MoveTo(0, 0))?;
 
