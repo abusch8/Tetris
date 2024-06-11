@@ -1,8 +1,5 @@
-use std::pin::Pin;
-use crossterm::{
-    Result,
-    event::{Event, KeyCode},
-};
+use std::{io::Result, pin::Pin};
+use crossterm::event::{Event, KeyCode};
 use tokio::time::{Instant, Sleep};
 
 use crate::{display::Display, Game, RotationDirection, ShiftDirection, LOCK_DURATION, LOCK_RESET_LIMIT};

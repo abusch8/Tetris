@@ -1,9 +1,9 @@
-use std::{env::args, io::stdout};
+use std::{env::args, io::{stdout, Result}};
 use crossterm::{
     cursor::{Hide, Show},
     event::EventStream,
     terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, SetTitle},
-    execute, Result,
+    execute,
 };
 use display::Display;
 use event::handle_event;

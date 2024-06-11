@@ -1,7 +1,7 @@
-use std::io::Stdout;
+use std::io::{Result, Stdout};
 use::std::io::{stdout, Write};
 use crossterm::{
-    execute, QueueableCommand, Result,
+    execute, QueueableCommand,
     cursor::MoveTo,
     style::{ContentStyle, Print, PrintStyledContent, StyledContent, Stylize},
     terminal::{self, Clear, ClearType},
