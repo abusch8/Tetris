@@ -12,7 +12,7 @@ use tokio::{pin, select, time::{interval, sleep, Duration, Instant}};
 
 use crate::game::*;
 
-use crate::debug::*;
+// use crate::debug::*;
 
 mod debug;
 mod display;
@@ -20,7 +20,7 @@ mod event;
 mod game;
 mod tetromino;
 
-const MAX_FRAME_RATE: u64 = 0; // Set to 0 for unlimited
+const MAX_FRAME_RATE: u64 = 120; // Set to 0 for unlimited
 const DISPLAY_FRAME_RATE: bool = true;
 
 pub const LOCK_RESET_LIMIT: u8 = 15;
@@ -96,7 +96,7 @@ async fn main() -> Result<()> {
     let args = args().collect::<Vec<String>>();
     let level = if args.len() == 2 { args[1].parse::<u32>().unwrap() } else { 1 };
 
-    let debug_window = DebugWindow::new();
+    // let debug_window = DebugWindow::new();
 
     enable_raw_mode()?;
     execute!(stdout, Hide, Clear(ClearType::All), SetTitle("TETRIS"))?;
@@ -108,7 +108,7 @@ async fn main() -> Result<()> {
     execute!(stdout, Show, Clear(ClearType::All))?;
     println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.score, game.level, game.lines);
 
-    debug_window.close();
+    // debug_window.close();
 
     Ok(())
 }

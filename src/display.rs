@@ -7,7 +7,7 @@ use crossterm::{
     terminal::{self, Clear, ClearType},
 };
 
-use crate::{debug_println, game::Game, tetromino::Tetromino};
+use crate::{game::Game, tetromino::Tetromino};
 
 // use crate::debug_println;
 
@@ -102,7 +102,7 @@ impl Display {
 
     fn tetromino_at_position(&self, tetromino: &Tetromino, pos: &Dimension) -> bool {
         tetromino.shape.iter().any(|(x, y)| {
-            self.board_y.1 as i32 - 2 - y == pos.1 && (
+            self.board_y.1 as i32 - y - 2 == pos.1 && (
                 self.board_x.0 as i32 + (x + 1) * 2 == pos.0 ||
                 self.board_x.0 as i32 + (x + 1) * 2 == pos.0 + 1
             )
