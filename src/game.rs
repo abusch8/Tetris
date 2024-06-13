@@ -11,10 +11,10 @@ use crate::{tetromino::*, LOCK_RESET_LIMIT};
 // use crate::debug::*;
 // use crate::debug_println;
 
-#[derive(Clone, Copy, FromPrimitive, PartialEq)] // TODO: remove clone/copy
+#[derive(FromPrimitive, PartialEq)]
 pub enum ShiftDirection { Left, Right, Down }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(PartialEq)]
 pub enum RotationDirection { Clockwise, CounterClockwise }
 
 fn rand_bag_gen() -> Vec<Tetromino> {

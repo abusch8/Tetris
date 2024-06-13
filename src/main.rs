@@ -20,7 +20,7 @@ mod event;
 mod game;
 mod tetromino;
 
-const MAX_FRAME_RATE: u64 = 120; // Set to 0 for unlimited
+const MAX_FRAME_RATE: u64 = 0; // Set to 0 for unlimited
 const DISPLAY_FRAME_RATE: bool = true;
 
 pub const LOCK_RESET_LIMIT: u8 = 15;
