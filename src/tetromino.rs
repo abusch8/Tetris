@@ -4,6 +4,8 @@ use strum_macros::EnumIter;
 
 use crate::display::Dimension;
 
+const USE_XTERM_256_COLORS: bool = true;
+
 pub type Shape = Vec<Dimension>;
 
 #[derive(Clone, Copy, FromPrimitive, PartialEq)]
@@ -28,49 +30,49 @@ impl Tetromino {
                 shape: vec![(3, 18), (4, 18), (5, 18), (6, 18)],
                 center: (4, 18),
                 direction: CardinalDirection::North,
-                color: Color::Cyan,
+                color: if USE_XTERM_256_COLORS { Color::AnsiValue(51) } else { Color::Cyan },
                 variant,
             },
             TetrominoVariant::J => Tetromino {
                 shape: vec![(4, 19), (4, 18), (5, 18), (6, 18)],
                 center: (5, 18),
                 direction: CardinalDirection::North,
-                color: Color::Blue,
+                color: if USE_XTERM_256_COLORS { Color::AnsiValue(33) } else { Color::Blue },
                 variant,
             },
             TetrominoVariant::L => Tetromino {
                 shape: vec![(4, 18), (5, 18), (6, 18), (6, 19)],
                 center: (5, 18),
                 direction: CardinalDirection::North,
-                color: Color::White,
+                color: if USE_XTERM_256_COLORS { Color::AnsiValue(202) } else { Color::White },
                 variant,
             },
             TetrominoVariant::O => Tetromino {
                 shape: vec![(4, 18), (4, 19), (5, 18), (5, 19)],
                 center: (4, 18),
                 direction: CardinalDirection::North,
-                color: Color::Yellow,
+                color: if USE_XTERM_256_COLORS { Color::AnsiValue(226) } else { Color::Yellow },
                 variant,
             },
             TetrominoVariant::S => Tetromino {
                 shape: vec![(4, 18), (5, 18), (5, 19), (6, 19)],
                 center: (5, 18),
                 direction: CardinalDirection::North,
-                color: Color::Green,
+                color: if USE_XTERM_256_COLORS { Color::AnsiValue(40) } else { Color::Green },
                 variant,
             },
             TetrominoVariant::T => Tetromino {
                 shape: vec![(4, 18), (5, 18), (5, 19), (6, 18)],
                 center: (5, 18),
                 direction: CardinalDirection::North,
-                color: Color::Magenta,
+                color: if USE_XTERM_256_COLORS { Color::AnsiValue(165) } else { Color::Magenta },
                 variant,
             },
             TetrominoVariant::Z => Tetromino {
                 shape: vec![(4, 19), (5, 19), (5, 18), (6, 18)],
                 center: (5, 18),
                 direction: CardinalDirection::North,
-                color: Color::Red,
+                color: if USE_XTERM_256_COLORS { Color::AnsiValue(197) } else { Color::Red },
                 variant,
             },
         }
