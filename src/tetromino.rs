@@ -72,7 +72,7 @@ impl Tetromino {
                 shape: vec![(4, 19), (5, 19), (5, 18), (6, 18)],
                 center: (5, 18),
                 direction: CardinalDirection::North,
-                color: if USE_XTERM_256_COLORS { Color::AnsiValue(197) } else { Color::Red },
+                color: if USE_XTERM_256_COLORS { Color::AnsiValue(196) } else { Color::Red },
                 variant,
             },
         }
