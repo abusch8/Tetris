@@ -1,9 +1,11 @@
 use lazy_static::lazy_static;
 use ini::Ini;
 
+const CONFIG_PATH: &str = "~/.config/tetris.ini";
+
 lazy_static! {
 
-    static ref CONFIG: Ini = Ini::load_from_file("conf.ini").unwrap();
+    static ref CONFIG: Ini = Ini::load_from_file(CONFIG_PATH).unwrap();
 
     pub static ref MAX_FRAME_RATE: u64 = CONFIG
         .get_from_or(Some("display"), "max_frame_rate", "60")
