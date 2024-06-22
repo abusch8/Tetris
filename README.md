@@ -1,6 +1,6 @@
 # Tetris
 
-Modern Tetris CLI written in Rust
+Modern Tetris TUI written in Rust
 
 ![Preview](preview.png)
 
