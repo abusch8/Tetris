@@ -10,28 +10,39 @@ fn reset_lock_timer(game: &Game, lock_delay: &mut Pin<&mut Sleep>) {
     }
 }
 
+fn key_map(key: &str) -> KeyCode {
+    match key {
+        "up" => KeyCode::Up,
+        "down" => KeyCode::Down,
+        "left" => KeyCode::Left,
+        "right" => KeyCode::Right,
+        "space" => KeyCode::Char(' '),
+        _ => KeyCode::Char(key.chars().next().unwrap()),
+    }
+}
+
 pub fn handle_event(event: Event, game: &mut Game, display: &mut Display, lock_delay: &mut Pin<&mut Sleep>) -> Result<()> {
     Ok(match event {
         Event::Key(KeyEvent { kind, code, .. }) => {
             if kind == KeyEventKind::Press {
                 match code {
-                    KeyCode::Char('w') | KeyCode::Char('W') | KeyCode::Up => {
+                    KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
                         game.rotate(RotationDirection::Clockwise);
                         reset_lock_timer(&game, lock_delay);
                     },
-                    KeyCode::Char('a') | KeyCode::Char('A') | KeyCode::Left => {
+                    KeyCode::Left | KeyCode::Char('a') | KeyCode::Char('A') => {
                         game.shift(ShiftDirection::Left);
                         if !game.hitting_left(&game.falling) {
                             reset_lock_timer(&game, lock_delay);
                         }
                     },
-                    KeyCode::Char('s') | KeyCode::Char('S') | KeyCode::Down => {
+                    KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
                         if !game.hitting_bottom(&game.falling) {
                             lock_delay.as_mut().reset(Instant::now() + LOCK_DURATION);
                         }
                         game.soft_drop();
                     },
-                    KeyCode::Char('d') | KeyCode::Char('D') | KeyCode::Right => {
+                    KeyCode::Right | KeyCode::Char('d') | KeyCode::Char('D') => {
                         game.shift(ShiftDirection::Right);
                         if !game.hitting_right(&game.falling) {
                             reset_lock_timer(&game, lock_delay);

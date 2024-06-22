@@ -15,13 +15,11 @@ use crate::game::*;
 // use crate::debug::*;
 
 mod debug;
+mod config;
 mod display;
 mod event;
 mod game;
 mod tetromino;
-
-const MAX_FRAME_RATE: u64 = 120; // Set to 0 for unlimited
-const DISPLAY_FRAME_RATE: bool = true;
 
 pub const LOCK_RESET_LIMIT: u8 = 15;
 pub const LOCK_DURATION: Duration = Duration::from_millis(500);
@@ -33,8 +31,8 @@ async fn run(game: &mut Game) -> Result<()> {
 
     display.draw()?;
 
-    let frame_duration = Duration::from_nanos(if MAX_FRAME_RATE > 0 {
-        1_000_000_000 / MAX_FRAME_RATE as u64
+    let frame_duration = Duration::from_nanos(if *config::MAX_FRAME_RATE > 0 {
+        1_000_000_000 / *config::MAX_FRAME_RATE as u64
     } else {
         1
     });
@@ -76,9 +74,9 @@ async fn run(game: &mut Game) -> Result<()> {
             },
             _ = render_interval.tick() => {
                 display.render(game)?;
-                debug_frame += DISPLAY_FRAME_RATE as u64;
+                debug_frame += *config::DISPLAY_FRAME_RATE as u64;
             },
-            _ = debug_frame_interval.tick(), if DISPLAY_FRAME_RATE => {
+            _ = debug_frame_interval.tick(), if *config::DISPLAY_FRAME_RATE => {
                 display.render_debug_info(debug_frame)?;
                 debug_frame = 0;
             },
