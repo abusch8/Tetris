@@ -1,11 +1,12 @@
-use lazy_static::lazy_static;
 use ini::Ini;
-
-const CONFIG_PATH: &str = "~/.config/tetris.ini";
+use home::home_dir;
+use lazy_static::lazy_static;
 
 lazy_static! {
 
-    static ref CONFIG: Ini = Ini::load_from_file(CONFIG_PATH).unwrap();
+    static ref CONFIG_PATH: String = format!("{}/.config/tetris.ini", home_dir().unwrap().to_str().unwrap());
+
+    static ref CONFIG: Ini = Ini::load_from_file(&*CONFIG_PATH).unwrap_or(Ini::new());
 
     pub static ref MAX_FRAME_RATE: u64 = CONFIG
         .get_from_or(Some("display"), "max_frame_rate", "60")
@@ -40,13 +41,17 @@ pub mod controls {
             "left"  => HashSet::from([KeyCode::Left]),
             "right" => HashSet::from([KeyCode::Right]),
             "space" => HashSet::from([KeyCode::Char(' ')]),
-            _ if key.len() > 1 => panic!("Invalid config key value: {}", key),
+            _ if key.len() > 1 => panic!("ERROR: Invalid controls config value `{}`", key),
             _ => {
                 let char = key.chars().next().unwrap();
-                HashSet::from([
-                    KeyCode::Char(char.to_lowercase().next().unwrap()),
-                    KeyCode::Char(char.to_uppercase().next().unwrap()),
-                ])
+                if char.is_ascii_alphabetic() {
+                    HashSet::from([
+                        KeyCode::Char(char.to_lowercase().next().unwrap()),
+                        KeyCode::Char(char.to_uppercase().next().unwrap()),
+                    ])
+                } else {
+                    HashSet::from([KeyCode::Char(char)])
+                }
             },
         }
     }

@@ -31,7 +31,7 @@ async fn run(game: &mut Game) -> Result<()> {
     display.draw()?;
 
     let frame_duration = Duration::from_nanos(if *config::MAX_FRAME_RATE > 0 {
-        1_000_000_000 / *config::MAX_FRAME_RATE as u64
+        1_000_000_000 / *config::MAX_FRAME_RATE
     } else {
         1
     });

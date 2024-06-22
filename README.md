@@ -9,10 +9,10 @@ Modern Tetris CLI written in Rust
 ```bash
 git clone https://github.com/abusch8/Tetris
 cd Tetris
-cargo build --release
+make clean install
 ```
 
-## Controls
+## Default Controls
 
 |Command            |Key            |
 |-------------------|---------------|
