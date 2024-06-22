@@ -38,6 +38,7 @@ pub mod controls {
             "left"  => HashSet::from([KeyCode::Left]),
             "right" => HashSet::from([KeyCode::Right]),
             "space" => HashSet::from([KeyCode::Char(' ')]),
+            _ if key.len() > 1 => panic!("Invalid config key value: {}", key),
             _ => {
                 let char = key.chars().next().unwrap();
                 HashSet::from([
