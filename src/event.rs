@@ -1,5 +1,5 @@
 use std::{io::Result, pin::Pin};
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{Event, KeyEvent, KeyEventKind};
 use tokio::time::{Instant, Sleep};
 
 use crate::{config, display::Display, Game, RotationDirection, ShiftDirection, LOCK_DURATION, LOCK_RESET_LIMIT};
@@ -46,7 +46,7 @@ pub fn handle_event(event: Event, game: &mut Game, display: &mut Display, lock_d
                     _ if config::controls::HOLD.contains(&code) => {
                         game.hold();
                     },
-                    KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
+                    _ if config::controls::QUIT.contains(&code) => {
                         game.end = true;
                     },
                     _ => (),

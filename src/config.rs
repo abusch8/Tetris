@@ -41,6 +41,7 @@ pub mod controls {
             "left"  => HashSet::from([KeyCode::Left]),
             "right" => HashSet::from([KeyCode::Right]),
             "space" => HashSet::from([KeyCode::Char(' ')]),
+            "esc"   => HashSet::from([KeyCode::Esc]),
             _ if key.len() > 1 => panic!("ERROR: Invalid controls config value `{}`", key),
             _ => {
                 let char = key.chars().next().unwrap();
@@ -102,6 +103,13 @@ pub mod controls {
 
         pub static ref HOLD: HashSet<KeyCode> = CONFIG
             .get_from_or(Some("controls"), "hold", "c")
+            .to_string()
+            .split(',')
+            .flat_map(key_map)
+            .collect();
+
+        pub static ref QUIT: HashSet<KeyCode> = CONFIG
+            .get_from_or(Some("controls"), "quit", "esc, q")
             .to_string()
             .split(',')
             .flat_map(key_map)
