@@ -6,7 +6,7 @@ Modern Tetris TUI written in Rust
 
 ## Installation
 
-The project can be installed from source using the following:
+The project can be installed from source with the following:
 
 ```bash
 git clone https://github.com/abusch8/Tetris
@@ -22,7 +22,7 @@ yay -S tetris-tui-git
 
 ## Configuration
 
-The configuration file is located in `~/.config/tetris.ini`.
+The configuration file is located at `~/.config/tetris.ini`.
 
 The default control scheme is as follows:
 

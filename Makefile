@@ -12,7 +12,7 @@ build:
 install: build
 	sudo cp target/release/$(BIN_NAME) $(INSTALL_DIR)
 	mkdir -p $(CONFIG_DIR)
-	cp config.ini $(CONFIG_DIR)/tetris.ini
+	cp default_config.ini $(CONFIG_DIR)/tetris.ini
 	@echo "Successfully installed to $(INSTALL_DIR)/$(BIN_NAME)"
 
 uninstall:
