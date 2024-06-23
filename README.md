@@ -12,6 +12,10 @@ cd Tetris
 make clean install
 ```
 
+```bash
+yay -S tetris-tui-git
+```
+
 ## Default Controls
 
 |Command            |Key            |
