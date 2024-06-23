@@ -20,6 +20,8 @@ The repo is also available as a package on the AUR.  It can be installed from so
 yay -S tetris-tui-git
 ```
 
+Execute the program with `tetris [start_level]`.
+
 ## Configuration
 
 The configuration file is located at `~/.config/tetris.ini`.
