@@ -155,15 +155,15 @@ impl Display {
     fn render_hold(&mut self, game: &Game) -> Result<&mut Self> {
         if let Some(holding) = &game.holding {
             self.stdout
-                .queue(MoveTo(self.board_x.0 - 9, 4))?
+                .queue(MoveTo(self.board_x.0 - 10, 4))?
                 .queue(Print(CLEAR))?
-                .queue(MoveTo(self.board_x.0 - 9, 5))?
+                .queue(MoveTo(self.board_x.0 - 10, 5))?
                 .queue(Print(CLEAR))?;
             for position in holding.shape.iter().map(|&(x, y)| (x as u16, y as u16)) {
                 self.stdout
-                    .queue(MoveTo((position.0 - 3) * 2 + self.board_x.0 - 9, self.board_y.1 - position.1 + 1))?
+                    .queue(MoveTo((position.0 - 3) * 2 + self.board_x.0 - 10, self.board_y.1 - position.1 + 1))?
                     .queue(PrintStyledContent(" ".on(holding.color)))?
-                    .queue(MoveTo((position.0 - 3) * 2 + self.board_x.0 - 8, self.board_y.1 - position.1 + 1))?
+                    .queue(MoveTo((position.0 - 3) * 2 + self.board_x.0 - 9, self.board_y.1 - position.1 + 1))?
                     .queue(PrintStyledContent(" ".on(holding.color)))?;
             }
         }
