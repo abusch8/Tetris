@@ -10,17 +10,17 @@ lazy_static! {
 
     pub static ref MAX_FRAME_RATE: u64 = CONFIG
         .get_from_or(Some("display"), "max_frame_rate", "60")
-        .parse::<u64>()
+        .parse()
         .unwrap_or(60);
 
     pub static ref DISPLAY_FRAME_RATE: bool = CONFIG
         .get_from_or(Some("display"), "display_frame_rate", "false")
-        .parse::<bool>()
+        .parse()
         .unwrap_or(false);
 
     pub static ref USE_XTERM_256_COLORS: bool = CONFIG
         .get_from_or(Some("display"), "use_xterm_256_colors", "true")
-        .parse::<bool>()
+        .parse()
         .unwrap_or(true);
 
 }
@@ -36,14 +36,16 @@ pub mod controls {
     fn key_map(key: &str) -> HashSet<KeyCode> {
         let key = key.trim();
         match key {
-            "up"    => HashSet::from([KeyCode::Up]),
-            "down"  => HashSet::from([KeyCode::Down]),
-            "left"  => HashSet::from([KeyCode::Left]),
+            "up" => HashSet::from([KeyCode::Up]),
+            "down" => HashSet::from([KeyCode::Down]),
+            "left" => HashSet::from([KeyCode::Left]),
             "right" => HashSet::from([KeyCode::Right]),
             "space" => HashSet::from([KeyCode::Char(' ')]),
-            "escape"   => HashSet::from([KeyCode::Esc]),
-            _ if key.len() > 1 => panic!("ERROR: Invalid controls config value `{}`", key),
+            "escape" => HashSet::from([KeyCode::Esc]),
             _ => {
+                if key.len() > 1 {
+                    panic!("ERROR: Invalid controls config value `{}`", key);
+                }
                 let char = key.chars().next().unwrap();
                 if char.is_ascii_alphabetic() {
                     HashSet::from([
