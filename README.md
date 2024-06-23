@@ -1,6 +1,6 @@
 # Tetris
 
-Modern Tetris TUI written in Rust
+### Modern Tetris TUI written in Rust
 
 ![Preview](preview.png)
 
@@ -39,7 +39,7 @@ The default control scheme is as follows:
 |Hold               |`[C]`          |
 |Quit               |`[ESC]` / `[Q]`|
 
-I also recommend that you adjust your keyboard's repeat rate and delay.  Can make the game feel a bit more responsive.
+I also recommend that you adjust your keyboard's repeat rate and delay.  It can make the game feel a bit more responsive.
 
 ## TODO
 
