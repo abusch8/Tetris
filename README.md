@@ -6,26 +6,34 @@ Modern Tetris TUI written in Rust
 
 ## Installation
 
+The project can be installed from source using the following:
+
 ```bash
 git clone https://github.com/abusch8/Tetris
 cd Tetris
 make clean install
 ```
 
+The repo is also available as a package on the AUR.  It can be installed from source using an AUR helper such as Yay:
+
 ```bash
 yay -S tetris-tui-git
 ```
 
-## Default Controls
+## Configuration
+
+The configuration file is located in `~/.config/tetris.ini`.
+
+The default control scheme is as follows:
 
 |Command            |Key            |
 |-------------------|---------------|
-|Clockwise          |`[↑]` / `[W]`  |
-|Left               |`[←]` / `[A]`  |
+|Rotate Right       |`[↑]` / `[W]`  |
+|Move Left          |`[←]` / `[A]`  |
 |Soft-Drop          |`[↓]` / `[S]`  |
-|Right              |`[→]` / `[D]`  |
+|Move Right         |`[→]` / `[D]`  |
 |Hard-Drop          |`[SPACE]`      |
-|Counter-Clockwise  |`[Z]`          |
+|Rotate Left        |`[Z]`          |
 |Hold               |`[C]`          |
 |Quit               |`[ESC]` / `[Q]`|
 
