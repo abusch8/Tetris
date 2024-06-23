@@ -37,6 +37,8 @@ The default control scheme is as follows:
 |Hold               |`[C]`          |
 |Quit               |`[ESC]` / `[Q]`|
 
+I also recommend that you adjust your keyboard's repeat rate and delay.  Can make the game feel a bit more responsive.
+
 ## TODO
 
 - Leaderboard
