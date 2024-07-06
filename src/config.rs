@@ -27,95 +27,87 @@ lazy_static! {
 
 pub mod controls {
 
-    use std::collections::HashSet;
+    use std::collections::HashMap;
     use crossterm::event::KeyCode;
     use lazy_static::lazy_static;
 
-    use crate::config::CONFIG;
+    use crate::{config::CONFIG, event::Action};
 
-    fn key_map(key: &str) -> HashSet<KeyCode> {
+    fn key_map(key: &str, action: Action) -> HashMap<KeyCode, Action> {
+        let mut action_map = HashMap::new();
         let key = key.trim();
-        match key {
-            "up" => HashSet::from([KeyCode::Up]),
-            "down" => HashSet::from([KeyCode::Down]),
-            "left" => HashSet::from([KeyCode::Left]),
-            "right" => HashSet::from([KeyCode::Right]),
-            "space" => HashSet::from([KeyCode::Char(' ')]),
-            "escape" => HashSet::from([KeyCode::Esc]),
-            _ => {
-                if key.len() > 1 {
-                    panic!("ERROR: Invalid controls config value `{}`", key);
-                }
-                let char = key.chars().next().unwrap();
-                if char.is_ascii_alphabetic() {
-                    HashSet::from([
-                        KeyCode::Char(char.to_lowercase().next().unwrap()),
-                        KeyCode::Char(char.to_uppercase().next().unwrap()),
-                    ])
-                } else {
-                    HashSet::from([KeyCode::Char(char)])
-                }
-            },
+        if key.len() == 1 && key.is_ascii() {
+            let char = key.chars().next().unwrap();
+            action_map.insert(KeyCode::Char(char.to_ascii_uppercase()), action.clone());
+            action_map.insert(KeyCode::Char(char.to_ascii_lowercase()), action);
+        } else {
+            match key {
+                "up"        => action_map.insert(KeyCode::Up, action),
+                "down"      => action_map.insert(KeyCode::Down, action),
+                "left"      => action_map.insert(KeyCode::Left, action),
+                "right"     => action_map.insert(KeyCode::Right, action),
+                "space"     => action_map.insert(KeyCode::Char(' '), action),
+                "escape"    => action_map.insert(KeyCode::Esc, action),
+                _           => panic!("Invalid controls config key value: {}", key),
+            };
         }
+        action_map
     }
 
     lazy_static! {
+        pub static ref ACTION_MAP: HashMap<KeyCode, Action> = (|| {
+            let mut action_map = HashMap::new();
 
-        pub static ref MOVE_RIGHT: HashSet<KeyCode> = CONFIG
-            .get_from_or(Some("controls"), "move_right", "right")
-            .to_string()
-            .split(',')
-            .flat_map(key_map)
-            .collect();
+            action_map.extend(CONFIG
+                .get_from_or(Some("controls"), "move_right", "right")
+                .to_string()
+                .split(',')
+                .flat_map(|key| key_map(key, Action::MoveRight)));
 
-        pub static ref MOVE_LEFT: HashSet<KeyCode> = CONFIG
-            .get_from_or(Some("controls"), "move_left", "left")
-            .to_string()
-            .split(',')
-            .flat_map(key_map)
-            .collect();
+            action_map.extend(CONFIG
+                .get_from_or(Some("controls"), "move_left", "left")
+                .to_string()
+                .split(',')
+                .flat_map(|key| key_map(key, Action::MoveLeft)));
 
-        pub static ref ROTATE_RIGHT: HashSet<KeyCode> = CONFIG
-            .get_from_or(Some("controls"), "rotate_right", "up")
-            .to_string()
-            .split(',')
-            .flat_map(key_map)
-            .collect();
+            action_map.extend(CONFIG
+                .get_from_or(Some("controls"), "rotate_right", "up")
+                .to_string()
+                .split(',')
+                .flat_map(|key| key_map(key, Action::RotateRight)));
 
-        pub static ref ROTATE_LEFT: HashSet<KeyCode> = CONFIG
-            .get_from_or(Some("controls"), "rotate_left", "z")
-            .to_string()
-            .split(',')
-            .flat_map(key_map)
-            .collect();
+            action_map.extend(CONFIG
+                .get_from_or(Some("controls"), "rotate_left", "z")
+                .to_string()
+                .split(',')
+                .flat_map(|key| key_map(key, Action::RotateLeft)));
 
-        pub static ref SOFT_DROP: HashSet<KeyCode> = CONFIG
-            .get_from_or(Some("controls"), "soft_drop", "down")
-            .to_string()
-            .split(',')
-            .flat_map(key_map)
-            .collect();
+            action_map.extend(CONFIG
+                .get_from_or(Some("controls"), "soft_drop", "up")
+                .to_string()
+                .split(',')
+                .flat_map(|key| key_map(key, Action::SoftDrop)));
 
-        pub static ref HARD_DROP: HashSet<KeyCode> = CONFIG
-            .get_from_or(Some("controls"), "hard_drop", "space")
-            .to_string()
-            .split(',')
-            .flat_map(key_map)
-            .collect();
+            action_map.extend(CONFIG
+                .get_from_or(Some("controls"), "hard_drop", "space")
+                .to_string()
+                .split(',')
+                .flat_map(|key| key_map(key, Action::HardDrop)));
 
-        pub static ref HOLD: HashSet<KeyCode> = CONFIG
-            .get_from_or(Some("controls"), "hold", "c")
-            .to_string()
-            .split(',')
-            .flat_map(key_map)
-            .collect();
+            action_map.extend(CONFIG
+                .get_from_or(Some("controls"), "hold", "c")
+                .to_string()
+                .split(',')
+                .flat_map(|key| key_map(key, Action::Hold)));
 
-        pub static ref QUIT: HashSet<KeyCode> = CONFIG
-            .get_from_or(Some("controls"), "quit", "escape, q")
-            .to_string()
-            .split(',')
-            .flat_map(key_map)
-            .collect();
+            action_map.extend(CONFIG
+                .get_from_or(Some("controls"), "quit", "escape")
+                .to_string()
+                .split(',')
+                .flat_map(|key| key_map(key, Action::Quit)));
+
+            action_map
+        })();
     }
 }
 
