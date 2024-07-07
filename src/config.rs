@@ -3,9 +3,7 @@ use home::home_dir;
 use lazy_static::lazy_static;
 
 lazy_static! {
-
     static ref CONFIG_PATH: String = format!("{}/.config/tetris.ini", home_dir().unwrap().to_str().unwrap());
-
     static ref CONFIG: Ini = Ini::load_from_file(&*CONFIG_PATH).unwrap_or(Ini::new());
 
     pub static ref MAX_FRAME_RATE: u64 = CONFIG
@@ -22,7 +20,6 @@ lazy_static! {
         .get_from_or(Some("display"), "use_xterm_256_colors", "true")
         .parse()
         .unwrap_or(true);
-
 }
 
 pub mod controls {

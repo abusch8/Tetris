@@ -5,8 +5,7 @@ use num_traits::FromPrimitive;
 use rand::{thread_rng, seq::SliceRandom};
 use strum::IntoEnumIterator;
 
-use crate::display::BOARD_DIMENSION;
-use crate::{tetromino::*, LOCK_RESET_LIMIT};
+use crate::{display::BOARD_DIMENSION, tetromino::*, LOCK_RESET_LIMIT};
 
 // use crate::debug::*;
 // use crate::debug_println;

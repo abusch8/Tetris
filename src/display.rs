@@ -7,7 +7,7 @@ use crossterm::{
     terminal::{self, Clear, ClearType},
 };
 
-use crate::{game::Game, tetromino::Tetromino};
+use crate::{game::Game, tetromino::{Tetromino, TetrominoVariant}};
 
 // use crate::debug_println;
 
@@ -22,6 +22,8 @@ pub struct Display {
     pub terminal_size: (u16, u16),
     pub board_x: (u16, u16),
     pub board_y: (u16, u16),
+    pub prev_next: Option<TetrominoVariant>,
+    pub prev_hold: Option<TetrominoVariant>,
 }
 
 impl Display {
@@ -40,7 +42,14 @@ impl Display {
             BOARD_DIMENSION.1 as u16 + 2,
         );
 
-        Ok(Display { stdout, terminal_size, board_x, board_y })
+        Ok(Display {
+            stdout,
+            terminal_size,
+            board_x,
+            board_y,
+            prev_next: None,
+            prev_hold: None,
+        })
     }
 
     pub fn draw(&mut self) -> Result<()> {
@@ -154,6 +163,11 @@ impl Display {
 
     fn render_hold(&mut self, game: &Game) -> Result<&mut Self> {
         if let Some(holding) = &game.holding {
+            if self.prev_hold == Some(holding.variant) {
+                return Ok(self)
+            }
+            self.prev_hold = Some(holding.variant);
+
             self.stdout
                 .queue(MoveTo(self.board_x.0 - 10, 4))?
                 .queue(Print(CLEAR))?
@@ -172,6 +186,13 @@ impl Display {
     }
 
     fn render_next(&mut self, game: &Game) -> Result<&mut Self> {
+        if let Some(next) = &game.next.get(0) {
+            if self.prev_next == Some(next.variant) {
+                return Ok(self)
+            }
+            self.prev_next = Some(next.variant);
+        }
+
         for (i, tetromino) in game.next.iter().enumerate() {
             self.stdout
                 .queue(MoveTo(self.board_x.1 + 1, 4 + (i as u16 * 3)))?

@@ -2,8 +2,7 @@ use crossterm::style::Color;
 use num_derive::FromPrimitive;
 use strum_macros::EnumIter;
 
-use crate::config;
-use crate::display::Dimension;
+use crate::{config, display::Dimension};
 
 pub type Shape = Vec<Dimension>;
 
@@ -13,7 +12,7 @@ pub enum CardinalDirection { North, East, South, West }
 #[derive(Clone, Copy, EnumIter, FromPrimitive, PartialEq)]
 pub enum TetrominoVariant { I, J, L, O, S, T, Z }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Tetromino {
     pub shape: Shape,
     pub center: Dimension,
