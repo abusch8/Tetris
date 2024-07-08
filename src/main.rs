@@ -41,6 +41,8 @@ async fn run(game: &mut Game) -> Result<()> {
     let drop_rate = (0.8 - (game.level - 1) as f32 * 0.007).powf((game.level - 1) as f32);
     let drop_duration = Duration::from_nanos((drop_rate * 1_000_000_000f32) as u64);
 
+    let mut prev_level = game.level;
+
     let mut drop_interval = interval(if drop_duration.is_zero() {
         Duration::from_nanos(1)
     } else {
@@ -79,10 +81,14 @@ async fn run(game: &mut Game) -> Result<()> {
                 display.render_debug_info(debug_frame)?;
                 debug_frame = 0;
             },
+            _ = async {}, if game.level != prev_level => {
+                prev_level = game.level;
+                let _ = Box::pin(run(game)).await;
+            },
             _ = async {}, if game.end => {
                 break;
             },
-        };
+        }
     })
 }
 
