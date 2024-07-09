@@ -2,7 +2,7 @@ use std::{io::Result, pin::Pin};
 use crossterm::event::{Event, KeyEvent, KeyEventKind};
 use tokio::time::{Instant, Sleep};
 
-use crate::{config, display::Display, Game, RotationDirection, ShiftDirection, LOCK_DURATION, LOCK_RESET_LIMIT};
+use crate::{config, display::Display, game::{Game, RotationDirection, ShiftDirection}, run::{LOCK_DURATION, LOCK_RESET_LIMIT}};
 
 #[derive(Clone)]
 pub enum Action {
@@ -70,3 +70,4 @@ pub fn handle_event(event: Event, game: &mut Game, display: &mut Display, lock_d
         _ => (),
     })
 }
+
