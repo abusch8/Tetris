@@ -8,9 +8,6 @@ use tokio::time::{Instant, Sleep};
 
 use crate::{display::BOARD_DIMENSION, tetromino::*, run::{LOCK_DURATION, LOCK_RESET_LIMIT}};
 
-// use crate::debug::*;
-// use crate::debug_println;
-
 #[derive(FromPrimitive, PartialEq)]
 pub enum ShiftDirection { Left, Right, Down }
 
