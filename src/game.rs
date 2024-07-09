@@ -1,11 +1,12 @@
-use std::mem::replace;
+use std::{pin::Pin, mem::replace};
 use crossterm::style::Color;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use rand::{thread_rng, seq::SliceRandom};
 use strum::IntoEnumIterator;
+use tokio::time::{Instant, Sleep};
 
-use crate::{display::BOARD_DIMENSION, tetromino::*, run::LOCK_RESET_LIMIT};
+use crate::{display::BOARD_DIMENSION, tetromino::*, run::{LOCK_DURATION, LOCK_RESET_LIMIT}};
 
 // use crate::debug::*;
 // use crate::debug_println;
@@ -104,7 +105,13 @@ impl Game {
         self.ghost = if self.overlapping(&ghost.shape) { None } else { Some(ghost) };
     }
 
-    pub fn shift(&mut self, direction: ShiftDirection) {
+    fn reset_lock_timer(&mut self, lock_delay: &mut Pin<&mut Sleep>) {
+        if self.lock_reset_count < LOCK_RESET_LIMIT {
+            lock_delay.as_mut().reset(Instant::now() + LOCK_DURATION);
+        }
+    }
+
+    pub fn shift(&mut self, direction: ShiftDirection, lock_delay: &mut Pin<&mut Sleep>) {
         if self.lock_reset_count == LOCK_RESET_LIMIT {
             self.place()
         }
@@ -116,6 +123,7 @@ impl Game {
                     }
                     self.falling.center.0 -= 1;
                     self.lock_reset_count += 1;
+                    self.reset_lock_timer(lock_delay);
                 }
             },
             ShiftDirection::Right => {
@@ -125,6 +133,7 @@ impl Game {
                     }
                     self.falling.center.0 += 1;
                     self.lock_reset_count += 1;
+                    self.reset_lock_timer(lock_delay);
                 }
             },
             ShiftDirection::Down => {
@@ -134,6 +143,7 @@ impl Game {
                     }
                     self.falling.center.1 -= 1;
                     self.lock_reset_count = 0;
+                    self.reset_lock_timer(lock_delay);
                 }
                 self.locking = self.hitting_bottom(&self.falling);
             },
@@ -151,7 +161,7 @@ impl Game {
         })
     }
 
-    pub fn rotate(&mut self, direction: RotationDirection) {
+    pub fn rotate(&mut self, direction: RotationDirection, lock_delay: &mut Pin<&mut Sleep>) {
         let mut rotated = Vec::new();
         let (angle, new_direction) = match direction {
             RotationDirection::Clockwise => (
@@ -206,6 +216,7 @@ impl Game {
                 self.falling.direction = new_direction;
                 self.lock_reset_count += 1;
                 self.update_ghost();
+                self.reset_lock_timer(lock_delay);
                 return
             }
         }
@@ -284,8 +295,8 @@ impl Game {
         self.update_ghost();
     }
 
-    pub fn soft_drop(&mut self) {
-        self.shift(ShiftDirection::Down);
+    pub fn soft_drop(&mut self, lock_delay: &mut Pin<&mut Sleep>) {
+        self.shift(ShiftDirection::Down, lock_delay);
         if !self.hitting_bottom(&self.falling) {
             self.score += 1;
         }

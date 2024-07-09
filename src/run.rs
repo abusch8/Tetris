@@ -1,12 +1,9 @@
 use std::io::Result;
 use crossterm::event::EventStream;
 use futures::{stream::StreamExt, FutureExt};
-use tokio::{pin, select, time::{interval, sleep, Duration, Interval, Instant}};
+use tokio::{pin, select, time::{interval, sleep, Duration, Interval}};
 
-use crate::config;
-use crate::display::Display;
-use crate::event::handle_event;
-use crate::game::{Game, ShiftDirection};
+use crate::{config, display::Display, event::handle_event, game::{Game, ShiftDirection}};
 
 pub const LOCK_RESET_LIMIT: u8 = 15;
 pub const LOCK_DURATION: Duration = Duration::from_millis(500);
@@ -55,10 +52,7 @@ pub async fn run(game: &mut Game) -> Result<()> {
                 game.place();
             },
             _ = drop_interval.tick() => {
-                if !game.hitting_bottom(&game.falling) {
-                    lock_delay.as_mut().reset(Instant::now() + LOCK_DURATION);
-                }
-                game.shift(ShiftDirection::Down);
+                game.shift(ShiftDirection::Down, &mut lock_delay);
             },
             _ = render_interval.tick() => {
                 display.render(game)?;
