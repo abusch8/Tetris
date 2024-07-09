@@ -8,7 +8,7 @@ use crossterm::{
 use display::Display;
 use event::handle_event;
 use futures::{stream::StreamExt, FutureExt};
-use tokio::{pin, select, time::{interval, sleep, Duration, Instant}};
+use tokio::{pin, select, time::{interval, sleep, Duration, Interval, Instant}};
 
 use crate::game::*;
 // use crate::debug::*;
@@ -22,6 +22,13 @@ mod tetromino;
 
 pub const LOCK_RESET_LIMIT: u8 = 15;
 pub const LOCK_DURATION: Duration = Duration::from_millis(500);
+
+fn calc_drop_interval(level: u32) -> Interval {
+    let drop_rate = (0.8 - (level - 1) as f32 * 0.007).powf((level - 1) as f32);
+    let drop_duration = Duration::from_nanos((drop_rate * 1_000_000_000f32) as u64);
+
+    interval(if drop_duration.is_zero() { Duration::from_nanos(1) } else { drop_duration })
+}
 
 async fn run(game: &mut Game) -> Result<()> {
     let mut reader = EventStream::new();
@@ -37,17 +44,9 @@ async fn run(game: &mut Game) -> Result<()> {
     });
 
     let mut render_interval = interval(frame_duration);
-
-    let drop_rate = (0.8 - (game.level - 1) as f32 * 0.007).powf((game.level - 1) as f32);
-    let drop_duration = Duration::from_nanos((drop_rate * 1_000_000_000f32) as u64);
+    let mut drop_interval = calc_drop_interval(game.level);
 
     let mut prev_level = game.level;
-
-    let mut drop_interval = interval(if drop_duration.is_zero() {
-        Duration::from_nanos(1)
-    } else {
-        drop_duration
-    });
 
     pin! {
         let lock_delay = sleep(Duration::ZERO);
@@ -83,7 +82,7 @@ async fn run(game: &mut Game) -> Result<()> {
             },
             _ = async {}, if game.level != prev_level => {
                 prev_level = game.level;
-                let _ = Box::pin(run(game)).await;
+                drop_interval = calc_drop_interval(game.level);
             },
             _ = async {}, if game.end => {
                 break;
@@ -107,8 +106,9 @@ async fn main() -> Result<()> {
     let game = &mut Game::start(level);
     run(game).await?;
 
-    disable_raw_mode()?;
     execute!(stdout, Show, Clear(ClearType::All))?;
+    disable_raw_mode()?;
+
     println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.score, game.level, game.lines);
 
     // debug_window.close();
