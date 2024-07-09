@@ -62,6 +62,9 @@ impl Display {
             self.terminal_size.0 / 2 - BOARD_DIMENSION.0 as u16 + BOARD_DIMENSION.0 as u16 * 2 + 2,
         );
 
+        self.prev_hold = None;
+        self.prev_next = None;
+
         for x in self.board_x.0..self.board_x.1 {
             for y in self.board_y.0..self.board_y.1 {
                 self.stdout
