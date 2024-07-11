@@ -1,18 +1,27 @@
 use std::io::Result;
+use core::pin::Pin;
 use crossterm::event::EventStream;
-use futures::{stream::StreamExt, FutureExt};
-use tokio::{pin, select, time::{interval, sleep, Duration, Interval}};
+use futures::{pin_mut, stream::StreamExt, FutureExt};
+use tokio::{pin, select, time::{interval, sleep, Duration, Interval, Sleep}};
 
 use crate::{config, display::Display, event::handle_event, game::{Game, ShiftDirection}};
 
+// use crate::debug_println;
+
 pub const LOCK_RESET_LIMIT: u8 = 15;
 pub const LOCK_DURATION: Duration = Duration::from_millis(500);
+
+const LINE_CLEAR_DURATION: Duration = Duration::from_millis(100);
 
 fn calc_drop_interval(level: u32) -> Interval {
     let drop_rate = (0.8 - (level - 1) as f32 * 0.007).powf((level - 1) as f32);
     let drop_duration = Duration::from_nanos((drop_rate * 1_000_000_000f32) as u64);
 
-    interval(if drop_duration.is_zero() { Duration::from_nanos(1) } else { drop_duration })
+    interval(if drop_duration.is_zero() {
+        Duration::from_nanos(1)
+    } else {
+        drop_duration
+    })
 }
 
 pub async fn run(game: &mut Game) -> Result<()> {
@@ -35,6 +44,7 @@ pub async fn run(game: &mut Game) -> Result<()> {
 
     pin! {
         let lock_delay = sleep(Duration::ZERO);
+        let line_clear_delay = sleep(Duration::ZERO);
     }
 
     let mut debug_frame_interval = interval(Duration::from_secs(1));
@@ -48,8 +58,12 @@ pub async fn run(game: &mut Game) -> Result<()> {
                     Err(error) => panic!("{}", error),
                 };
             },
+            _ = &mut line_clear_delay => {
+                game.line_clear();
+            },
             _ = &mut lock_delay, if game.locking => {
                 game.place();
+                line_clear_delay.set(sleep(LINE_CLEAR_DURATION));
             },
             _ = drop_interval.tick() => {
                 game.shift(ShiftDirection::Down, &mut lock_delay);

@@ -3,7 +3,7 @@ use::std::io::{stdout, Write};
 use crossterm::{
     execute, QueueableCommand,
     cursor::MoveTo,
-    style::{ContentStyle, Print, PrintStyledContent, StyledContent, Stylize},
+    style::{Color, ContentStyle, Print, PrintStyledContent, StyledContent, Stylize},
     terminal::{self, Clear, ClearType},
 };
 
@@ -152,7 +152,11 @@ impl Display {
                 let j = ((x - self.board_x.0 - 1) / 2) as usize;
 
                 if let Some(color) = game.stack[i][j] {
-                    content = " ".on(color);
+                    content = if game.clearing.get(&i).is_some() {
+                        "▓".with(Color::White)
+                    } else {
+                        " ".on(color)
+                    }
                 }
 
                 self.stdout

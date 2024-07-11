@@ -19,6 +19,8 @@ mod tetromino;
 async fn main() -> Result<()> {
     let mut stdout = stdout();
 
+    // let debug_window = debug::DebugWindow::new();
+
     let args = args().collect::<Vec<String>>();
     let level = if args.len() == 2 { args[1].parse::<u32>().unwrap() } else { 1 };
 
@@ -30,6 +32,8 @@ async fn main() -> Result<()> {
 
     execute!(stdout, Show, Clear(ClearType::All))?;
     disable_raw_mode()?;
+
+    // debug_window.close();
 
     println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.score, game.level, game.lines);
 

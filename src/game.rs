@@ -1,10 +1,10 @@
-use std::{pin::Pin, mem::replace};
+use std::{pin::Pin, mem::replace, collections::HashSet};
 use crossterm::style::Color;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use rand::{thread_rng, seq::SliceRandom};
 use strum::IntoEnumIterator;
-use tokio::time::{Instant, Sleep};
+use tokio::time::{sleep, Sleep};
 
 use crate::{display::BOARD_DIMENSION, tetromino::*, run::{LOCK_DURATION, LOCK_RESET_LIMIT}};
 
@@ -32,6 +32,7 @@ pub struct Game {
     pub level: u32,
     pub lines: u32,
     pub combo: i32,
+    pub clearing: HashSet<usize>,
     pub can_hold: bool,
     pub locking: bool,
     pub lock_reset_count: u8,
@@ -53,6 +54,7 @@ impl Game {
             level: start_level,
             lines: 0,
             combo: -1,
+            clearing: HashSet::new(),
             can_hold: true,
             locking: false,
             lock_reset_count: 0,
@@ -104,7 +106,7 @@ impl Game {
 
     fn reset_lock_timer(&mut self, lock_delay: &mut Pin<&mut Sleep>) {
         if self.lock_reset_count < LOCK_RESET_LIMIT {
-            lock_delay.as_mut().reset(Instant::now() + LOCK_DURATION);
+            lock_delay.set(sleep(LOCK_DURATION));
         }
     }
 
@@ -219,24 +221,45 @@ impl Game {
         }
     }
 
-    fn line_clear(&mut self) -> u32 {
-        let old_stack = replace(&mut self.stack, Vec::new());
-        let mut num_cleared = 0;
-        for row in old_stack.into_iter() {
+    fn mark_clear(&mut self) {
+        let mut clearing = HashSet::new();
+        for (i, row) in self.stack.iter().enumerate() {
             if row.iter().all(|block| block.is_some()) {
-                num_cleared += 1;
-            } else {
+                clearing.insert(i);
+            }
+        }
+        self.clearing = clearing;
+    }
+
+    pub fn line_clear(&mut self) {
+        let stack = replace(&mut self.stack, Vec::new());
+
+        for (i, row) in stack.into_iter().enumerate() {
+            if self.clearing.get(&i).is_none() {
                 self.stack.push(row);
             }
         }
-        for _ in 0..num_cleared {
-            self.stack.push(vec![None; BOARD_DIMENSION.0 as usize]);
+
+        let num_cleared = self.clearing.len() as u32;
+
+        self.stack.extend(vec![vec![None; BOARD_DIMENSION.0 as usize]; num_cleared as usize]);
+
+        if num_cleared > 0 {
+            self.lines += num_cleared;
+            self.level = self.start_level + self.lines / 10;
+            self.combo += 1;
+            self.calculate_score(num_cleared);
+            self.update_ghost();
+        } else {
+            self.combo = -1;
         }
-        num_cleared
+
+        self.clearing = HashSet::new();
     }
 
     fn calculate_score(&mut self, num_cleared: u32) {
-        self.score += if self.stack.iter().all(|row| row.iter().all(|block| block.is_none())) {
+        let full_clear = self.stack.iter().flatten().all(|block| block.is_none());
+        self.score += if full_clear {
             match num_cleared {
                 1 => self.level * 800,
                 2 => self.level * 1200,
@@ -267,16 +290,7 @@ impl Game {
             }
             self.stack[position.1 as usize][position.0 as usize] = Some(self.falling.color);
         }
-        let num_cleared = self.line_clear();
-        if num_cleared > 0 {
-            self.lines += num_cleared;
-            self.level = self.start_level + self.lines / 10;
-            self.combo += 1;
-            self.calculate_score(num_cleared);
-            self.update_ghost();
-        } else {
-            self.combo = -1;
-        }
+        self.mark_clear();
         let mut falling = self.get_next();
         for i in 17..20 {
             if self.stack[i].iter().any(|block| block.is_some()) {
