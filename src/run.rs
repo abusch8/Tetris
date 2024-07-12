@@ -7,7 +7,7 @@ use crate::{config, display::Display, event::handle_event, game::{Game, ShiftDir
 
 pub const LOCK_RESET_LIMIT: u8 = 15;
 pub const LOCK_DURATION: Duration = Duration::from_millis(500);
-pub const LINE_CLEAR_DURATION: Duration = Duration::from_millis(100);
+pub const LINE_CLEAR_DURATION: Duration = Duration::from_millis(80);
 
 fn calc_drop_interval(level: u32) -> Interval {
     let drop_rate = (0.8 - (level - 1) as f32 * 0.007).powf((level - 1) as f32);
@@ -24,7 +24,6 @@ pub async fn run(game: &mut Game) -> Result<()> {
     let mut reader = EventStream::new();
 
     let display = &mut Display::new()?;
-
     display.draw()?;
 
     let frame_duration = Duration::from_nanos(if *config::MAX_FRAME_RATE > 0 {
@@ -50,7 +49,13 @@ pub async fn run(game: &mut Game) -> Result<()> {
         select! {
             Some(event) = reader.next().fuse() => {
                 match event {
-                    Ok(event) => handle_event(event, game, display, &mut lock_delay, &mut line_clear_delay)?,
+                    Ok(event) => handle_event(
+                        game,
+                        event,
+                        display,
+                        &mut lock_delay,
+                        &mut line_clear_delay,
+                    )?,
                     Err(error) => panic!("{}", error),
                 };
             },

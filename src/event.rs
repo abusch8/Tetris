@@ -16,7 +16,13 @@ pub enum Action {
     Quit,
 }
 
-pub fn handle_event(event: Event, game: &mut Game, display: &mut Display, lock_delay: &mut Pin<&mut Sleep>, line_clear_delay: &mut Pin<&mut Sleep>) -> Result<()> {
+pub fn handle_event(
+    game: &mut Game,
+    event: Event,
+    display: &mut Display,
+    lock_delay: &mut Pin<&mut Sleep>,
+    line_clear_delay: &mut Pin<&mut Sleep>
+) -> Result<()> {
     Ok(match event {
         Event::Key(KeyEvent { kind, code, .. }) => {
             if kind == KeyEventKind::Press {

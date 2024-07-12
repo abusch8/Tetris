@@ -66,7 +66,9 @@ impl Game {
 
     fn get_next(&mut self) -> Tetromino {
         self.next.push(self.bag.pop().unwrap());
-        if self.bag.is_empty() { self.bag = rand_bag_gen() }
+        if self.bag.is_empty() {
+            self.bag = rand_bag_gen()
+        }
         self.next.remove(0)
     }
 
@@ -181,7 +183,11 @@ impl Game {
             ));
         }
         let offset_data = match self.falling.variant {
-            TetrominoVariant::J | TetrominoVariant::L | TetrominoVariant::S | TetrominoVariant::T | TetrominoVariant::Z => vec![
+            TetrominoVariant::J |
+            TetrominoVariant::L |
+            TetrominoVariant::S |
+            TetrominoVariant::T |
+            TetrominoVariant::Z => vec![
                 vec![( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // North
                 vec![( 0,  0), ( 1,  0), ( 1, -1), ( 0,  2), ( 1,  2)], // East
                 vec![( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // South
@@ -203,11 +209,14 @@ impl Game {
         for i in 0..offset_data[0].len() {
             let offset_x = offset_data[new_direction as usize][i].0 - offset_data[self.falling.direction as usize][i].0;
             let offset_y = offset_data[new_direction as usize][i].1 - offset_data[self.falling.direction as usize][i].1;
+
             let mut kicked = rotated.clone();
+
             for position in kicked.iter_mut() {
                 position.0 -= offset_x;
                 position.1 -= offset_y;
             }
+
             if !self.overlapping(&kicked) {
                 self.falling.shape = kicked;
                 self.falling.center.0 -= offset_x;
@@ -254,7 +263,7 @@ impl Game {
             self.combo = -1;
         }
 
-        self.clearing = HashSet::new();
+        self.clearing.clear();
     }
 
     fn calculate_score(&mut self, num_cleared: u32) {
@@ -283,6 +292,7 @@ impl Game {
         if !self.hitting_bottom(&self.falling) {
             return
         }
+
         for position in self.falling.shape.iter() {
             if position.1 > BOARD_DIMENSION.1 - 1 {
                 self.end = true;
@@ -290,7 +300,9 @@ impl Game {
             }
             self.stack[position.1 as usize][position.0 as usize] = Some(self.falling.color);
         }
+
         self.mark_clear();
+
         let mut falling = self.get_next();
         for i in 17..20 {
             if self.stack[i].iter().any(|block| block.is_some()) {
@@ -300,9 +312,11 @@ impl Game {
                 falling.center.1 += 1;
             }
         }
+
         self.falling = falling;
         self.locking = false;
         self.can_hold = true;
+
         self.update_ghost();
 
         line_clear_delay.set(sleep(LINE_CLEAR_DURATION));
@@ -328,9 +342,11 @@ impl Game {
     pub fn hold(&mut self) {
         if self.can_hold {
             let swap = self.holding.clone().unwrap_or_else(|| self.get_next());
+
             self.holding = Some(Tetromino::new(self.falling.variant));
             self.falling = swap;
             self.can_hold = false;
+
             self.update_ghost();
         }
     }
