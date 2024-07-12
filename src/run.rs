@@ -54,11 +54,11 @@ pub async fn run(game: &mut Game) -> Result<()> {
                     Err(error) => panic!("{}", error),
                 };
             },
-            _ = &mut line_clear_delay, if game.clearing.len() > 0 => {
-                game.line_clear();
-            },
             _ = &mut lock_delay, if game.locking => {
                 game.place(&mut line_clear_delay);
+            },
+            _ = &mut line_clear_delay, if game.clearing.len() > 0 => {
+                game.line_clear();
             },
             _ = drop_interval.tick() => {
                 game.shift(ShiftDirection::Down, &mut lock_delay, &mut line_clear_delay);

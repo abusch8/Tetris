@@ -30,12 +30,12 @@ The default control scheme is as follows:
 
 |Command            |Key            |
 |-------------------|---------------|
-|Rotate Right       |`[↑]` / `[W]`  |
-|Move Left          |`[←]` / `[A]`  |
-|Soft-Drop          |`[↓]` / `[S]`  |
 |Move Right         |`[→]` / `[D]`  |
-|Hard-Drop          |`[SPACE]`      |
+|Move Left          |`[←]` / `[A]`  |
+|Rotate Right       |`[↑]` / `[W]`  |
 |Rotate Left        |`[Z]`          |
+|Soft-Drop          |`[↓]` / `[S]`  |
+|Hard-Drop          |`[SPACE]`      |
 |Hold               |`[C]`          |
 |Quit               |`[ESC]` / `[Q]`|
 
@@ -46,6 +46,6 @@ I also recommend that you adjust your keyboard's repeat rate and delay.  It can 
 - Leaderboard
 - T-Spin scoring
 - Fix soft drop scoring accuracy
-- Line clear animation
 - Scoring feedback
 - Prevent infinity
+
