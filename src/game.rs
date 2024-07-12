@@ -6,7 +6,7 @@ use rand::{thread_rng, seq::SliceRandom};
 use strum::IntoEnumIterator;
 use tokio::time::{sleep, Sleep};
 
-use crate::{display::BOARD_DIMENSION, tetromino::*, run::{LOCK_DURATION, LOCK_RESET_LIMIT}};
+use crate::{display::BOARD_DIMENSION, run::{LINE_CLEAR_DURATION, LOCK_DURATION, LOCK_RESET_LIMIT}, tetromino::*};
 
 #[derive(FromPrimitive, PartialEq)]
 pub enum ShiftDirection { Left, Right, Down }
@@ -110,9 +110,9 @@ impl Game {
         }
     }
 
-    pub fn shift(&mut self, direction: ShiftDirection, lock_delay: &mut Pin<&mut Sleep>) {
+    pub fn shift(&mut self, direction: ShiftDirection, lock_delay: &mut Pin<&mut Sleep>, line_clear_delay: &mut Pin<&mut Sleep>) {
         if self.lock_reset_count == LOCK_RESET_LIMIT {
-            self.place()
+            self.place(line_clear_delay)
         }
         match direction {
             ShiftDirection::Left => {
@@ -279,7 +279,7 @@ impl Game {
         self.score += 50 * self.combo as u32 * self.level;
     }
 
-    pub fn place(&mut self) {
+    pub fn place(&mut self, line_clear_delay: &mut Pin<&mut Sleep>) {
         if !self.hitting_bottom(&self.falling) {
             return
         }
@@ -304,23 +304,25 @@ impl Game {
         self.locking = false;
         self.can_hold = true;
         self.update_ghost();
+
+        line_clear_delay.set(sleep(LINE_CLEAR_DURATION));
     }
 
-    pub fn soft_drop(&mut self, lock_delay: &mut Pin<&mut Sleep>) {
-        self.shift(ShiftDirection::Down, lock_delay);
+    pub fn soft_drop(&mut self, lock_delay: &mut Pin<&mut Sleep>, line_clear_delay: &mut Pin<&mut Sleep>) {
+        self.shift(ShiftDirection::Down, lock_delay, line_clear_delay);
         if !self.hitting_bottom(&self.falling) {
             self.score += 1;
         }
     }
 
-    pub fn hard_drop(&mut self) {
+    pub fn hard_drop(&mut self, line_clear_delay: &mut Pin<&mut Sleep>) {
         while !self.hitting_bottom(&self.falling) {
             for position in self.falling.shape.iter_mut() {
                 position.1 -= 1;
                 self.score += 2;
             }
         }
-        self.place();
+        self.place(line_clear_delay);
     }
 
     pub fn hold(&mut self) {

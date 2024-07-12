@@ -9,8 +9,6 @@ use crossterm::{
 
 use crate::{game::Game, tetromino::{Tetromino, TetrominoVariant}};
 
-// use crate::debug_println;
-
 pub type Dimension = (i32, i32);
 
 pub const BOARD_DIMENSION: Dimension = (10, 20);
