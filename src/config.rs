@@ -52,7 +52,7 @@ pub mod controls {
     }
 
     lazy_static! {
-        pub static ref ACTION_MAP: HashMap<KeyCode, Action> = (|| {
+        pub static ref ACTION_MAP: HashMap<KeyCode, Action> = {
             let mut action_map = HashMap::new();
 
             action_map.extend(CONFIG
@@ -104,7 +104,7 @@ pub mod controls {
                 .flat_map(|key| key_map(key, Action::Quit)));
 
             action_map
-        })();
+        };
     }
 }
 

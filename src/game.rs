@@ -1,4 +1,4 @@
-use std::{pin::Pin, mem::replace, collections::HashSet};
+use std::{collections::HashSet, mem::replace, pin::Pin};
 use crossterm::style::Color;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
@@ -14,8 +14,32 @@ pub enum ShiftDirection { Left, Right, Down }
 #[derive(PartialEq)]
 pub enum RotationDirection { Clockwise, CounterClockwise }
 
+static JLSTZ_OFFSETS: [[(i32, i32); 5]; 4] = [
+    [( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // North
+    [( 0,  0), ( 1,  0), ( 1, -1), ( 0,  2), ( 1,  2)], // East
+    [( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // South
+    [( 0,  0), (-1,  0), (-1, -1), ( 0,  2), (-1,  2)], // West
+];
+
+static I_OFFSETS: [[(i32, i32); 5]; 4] = [
+    [( 0,  0), (-1,  0), ( 2,  0), (-1,  0), ( 2,  0)],
+    [(-1,  0), ( 0,  0), ( 0,  0), ( 0,  1), ( 0, -2)],
+    [(-1,  1), ( 1,  1), (-2,  1), ( 1,  0), (-2,  0)],
+    [( 0,  1), ( 0,  1), ( 0,  1), ( 0, -1), ( 0,  2)],
+];
+
+static O_OFFSETS: [[(i32, i32); 5]; 4] = [
+    [( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
+    [( 0, -1), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
+    [(-1, -1), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
+    [(-1,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
+];
+
 fn rand_bag_gen() -> Vec<Tetromino> {
-    let mut bag = TetrominoVariant::iter().map(|variant| Tetromino::new(variant)).collect::<Vec<Tetromino>>();
+    let mut bag = TetrominoVariant::iter()
+        .map(|variant| Tetromino::new(variant))
+        .collect::<Vec<Tetromino>>();
+
     bag.shuffle(&mut thread_rng());
     bag
 }
@@ -112,10 +136,16 @@ impl Game {
         }
     }
 
-    pub fn shift(&mut self, direction: ShiftDirection, lock_delay: &mut Pin<&mut Sleep>, line_clear_delay: &mut Pin<&mut Sleep>) {
+    pub fn shift(
+        &mut self,
+        direction: ShiftDirection,
+        lock_delay: &mut Pin<&mut Sleep>,
+        line_clear_delay: &mut Pin<&mut Sleep>,
+    ) {
         if self.lock_reset_count == LOCK_RESET_LIMIT {
             self.place(line_clear_delay)
         }
+
         match direction {
             ShiftDirection::Left => {
                 if !self.hitting_left(&self.falling) {
@@ -149,6 +179,7 @@ impl Game {
                 self.locking = self.hitting_bottom(&self.falling);
             },
         }
+
         self.update_ghost();
     }
 
@@ -163,7 +194,6 @@ impl Game {
     }
 
     pub fn rotate(&mut self, direction: RotationDirection, lock_delay: &mut Pin<&mut Sleep>) {
-        let mut rotated = Vec::new();
         let (angle, new_direction) = match direction {
             RotationDirection::Clockwise => (
                 f32::from(-90.0).to_radians(),
@@ -174,48 +204,33 @@ impl Game {
                 CardinalDirection::from_i32(((self.falling.direction as i32 - 1) % 4 + 4) % 4).unwrap(),
             ),
         };
-        for position in self.falling.shape.iter() {
-            let x = (position.0 - self.falling.center.0) as f32;
-            let y = (position.1 - self.falling.center.1) as f32;
-            rotated.push((
+
+        let rotated: Vec<(i32, i32)> = self.falling.shape.iter().map(|&(x, y)| {
+            let x = (x - self.falling.center.0) as f32;
+            let y = (y - self.falling.center.1) as f32;
+            (
                 ((x * angle.cos() - y * angle.sin()) + self.falling.center.0 as f32).round() as i32,
                 ((x * angle.sin() + y * angle.cos()) + self.falling.center.1 as f32).round() as i32,
-            ));
-        }
-        let offset_data = match self.falling.variant {
+            )
+        }).collect();
+
+        let offset_table = match self.falling.variant {
             TetrominoVariant::J |
             TetrominoVariant::L |
             TetrominoVariant::S |
             TetrominoVariant::T |
-            TetrominoVariant::Z => vec![
-                vec![( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // North
-                vec![( 0,  0), ( 1,  0), ( 1, -1), ( 0,  2), ( 1,  2)], // East
-                vec![( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // South
-                vec![( 0,  0), (-1,  0), (-1, -1), ( 0,  2), (-1,  2)], // West
-            ],
-            TetrominoVariant::I => vec![
-                vec![( 0,  0), (-1,  0), ( 2,  0), (-1,  0), ( 2,  0)],
-                vec![(-1,  0), ( 0,  0), ( 0,  0), ( 0,  1), ( 0, -2)],
-                vec![(-1,  1), ( 1,  1), (-2,  1), ( 1,  0), (-2,  0)],
-                vec![( 0,  1), ( 0,  1), ( 0,  1), ( 0, -1), ( 0,  2)],
-            ],
-            TetrominoVariant::O => vec![
-                vec![( 0,  0)],
-                vec![( 0, -1)],
-                vec![(-1, -1)],
-                vec![(-1,  0)],
-            ],
+            TetrominoVariant::Z => JLSTZ_OFFSETS,
+            TetrominoVariant::I => I_OFFSETS,
+            TetrominoVariant::O => O_OFFSETS,
         };
-        for i in 0..offset_data[0].len() {
-            let offset_x = offset_data[new_direction as usize][i].0 - offset_data[self.falling.direction as usize][i].0;
-            let offset_y = offset_data[new_direction as usize][i].1 - offset_data[self.falling.direction as usize][i].1;
 
-            let mut kicked = rotated.clone();
+        for i in 0..offset_table[0].len() {
+            let offset_x = offset_table[new_direction as usize][i].0
+                - offset_table[self.falling.direction as usize][i].0;
+            let offset_y = offset_table[new_direction as usize][i].1
+                - offset_table[self.falling.direction as usize][i].1;
 
-            for position in kicked.iter_mut() {
-                position.0 -= offset_x;
-                position.1 -= offset_y;
-            }
+            let kicked = rotated.iter().map(|&(x, y)| (x - offset_x, y - offset_y)).collect();
 
             if !self.overlapping(&kicked) {
                 self.falling.shape = kicked;
@@ -257,7 +272,7 @@ impl Game {
             self.lines += num_cleared;
             self.level = self.start_level + self.lines / 10;
             self.combo += 1;
-            self.calculate_score(num_cleared);
+            self.calc_score(num_cleared);
             self.update_ghost();
         } else {
             self.combo = -1;
@@ -266,7 +281,7 @@ impl Game {
         self.clearing.clear();
     }
 
-    fn calculate_score(&mut self, num_cleared: u32) {
+    fn calc_score(&mut self, num_cleared: u32) {
         let full_clear = self.stack.iter().flatten().all(|block| block.is_none());
         self.score += if full_clear {
             match num_cleared {
