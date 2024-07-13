@@ -1,4 +1,5 @@
 use std::{collections::HashSet, mem::replace, pin::Pin};
+use core::time::Duration;
 use crossterm::style::Color;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
@@ -6,13 +7,11 @@ use rand::{thread_rng, seq::SliceRandom};
 use strum::IntoEnumIterator;
 use tokio::time::{sleep, Sleep};
 
-use crate::{display::BOARD_DIMENSION, run::{LINE_CLEAR_DURATION, LOCK_DURATION, LOCK_RESET_LIMIT}, tetromino::*};
+use crate::{display::BOARD_DIMENSION, tetromino::*};
 
-#[derive(FromPrimitive, PartialEq)]
-pub enum ShiftDirection { Left, Right, Down }
-
-#[derive(PartialEq)]
-pub enum RotationDirection { Clockwise, CounterClockwise }
+const LOCK_RESET_LIMIT: u8 = 15;
+const LOCK_DURATION: Duration = Duration::from_millis(500);
+const LINE_CLEAR_DURATION: Duration = Duration::from_millis(80);
 
 static JLSTZ_OFFSETS: [[(i32, i32); 5]; 4] = [
     [( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // North
@@ -34,6 +33,12 @@ static O_OFFSETS: [[(i32, i32); 5]; 4] = [
     [(-1, -1), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
     [(-1,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
 ];
+
+#[derive(FromPrimitive, PartialEq)]
+pub enum ShiftDirection { Left, Right, Down }
+
+#[derive(PartialEq)]
+pub enum RotationDirection { Clockwise, CounterClockwise }
 
 fn rand_bag_gen() -> Vec<Tetromino> {
     let mut bag = TetrominoVariant::iter()
@@ -96,7 +101,7 @@ impl Game {
         self.next.remove(0)
     }
 
-    pub fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
+    fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
             position.1 == 0 ||
             position.1 < BOARD_DIMENSION.1 &&
@@ -104,7 +109,7 @@ impl Game {
         })
     }
 
-    pub fn hitting_left(&self, tetromino: &Tetromino) -> bool {
+    fn hitting_left(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
             position.0 == 0 ||
             position.1 < BOARD_DIMENSION.1 &&
@@ -112,7 +117,7 @@ impl Game {
         })
     }
 
-    pub fn hitting_right(&self, tetromino: &Tetromino) -> bool {
+    fn hitting_right(&self, tetromino: &Tetromino) -> bool {
         tetromino.shape.iter().any(|position| {
             position.0 == BOARD_DIMENSION.0 - 1 ||
             position.1 < BOARD_DIMENSION.1 &&

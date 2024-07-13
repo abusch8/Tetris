@@ -46,6 +46,5 @@ I also recommend that you adjust your keyboard's repeat rate and delay.  It can 
 - Leaderboard
 - T-Spin scoring
 - Fix soft drop scoring accuracy
-- Scoring feedback
 - Prevent infinity
 

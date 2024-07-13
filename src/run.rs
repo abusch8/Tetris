@@ -5,10 +5,6 @@ use tokio::{pin, select, time::{interval, sleep, Duration, Interval}};
 
 use crate::{config, display::Display, event::handle_event, game::{Game, ShiftDirection}};
 
-pub const LOCK_RESET_LIMIT: u8 = 15;
-pub const LOCK_DURATION: Duration = Duration::from_millis(500);
-pub const LINE_CLEAR_DURATION: Duration = Duration::from_millis(80);
-
 fn calc_drop_interval(level: u32) -> Interval {
     let drop_rate = (0.8 - (level - 1) as f32 * 0.007).powf((level - 1) as f32);
     let drop_duration = Duration::from_nanos((drop_rate * 1_000_000_000f32) as u64);

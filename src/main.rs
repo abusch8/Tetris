@@ -1,8 +1,8 @@
 use std::{env::args, io::{stdout, Result}};
 use crossterm::{
     cursor::{Hide, Show},
-    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, SetTitle},
     execute,
+    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, SetTitle},
 };
 
 use crate::{game::Game, run::run};
