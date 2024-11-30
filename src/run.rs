@@ -43,17 +43,14 @@ pub async fn run(game: &mut Game) -> Result<()> {
 
     Ok(loop {
         select! {
-            Some(event) = reader.next().fuse() => {
-                match event {
-                    Ok(event) => handle_event(
-                        game,
-                        event,
-                        display,
-                        &mut lock_delay,
-                        &mut line_clear_delay,
-                    )?,
-                    Err(error) => panic!("{}", error),
-                };
+            Some(Ok(event)) = reader.next().fuse() => {
+                handle_event(
+                    game,
+                    event,
+                    display,
+                    &mut lock_delay,
+                    &mut line_clear_delay,
+                )?
             },
             _ = &mut lock_delay, if game.locking => {
                 game.place(&mut line_clear_delay);

@@ -3,7 +3,7 @@ use core::time::Duration;
 use crossterm::style::Color;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use rand::{thread_rng, seq::SliceRandom};
+use rand::{seq::SliceRandom, thread_rng};
 use strum::IntoEnumIterator;
 use tokio::time::{sleep, Sleep};
 
@@ -11,7 +11,7 @@ use crate::{display::BOARD_DIMENSION, tetromino::*};
 
 const LOCK_RESET_LIMIT: u8 = 15;
 const LOCK_DURATION: Duration = Duration::from_millis(500);
-const LINE_CLEAR_DURATION: Duration = Duration::from_millis(80);
+const LINE_CLEAR_DURATION: Duration = Duration::from_millis(125);
 
 static JLSTZ_OFFSETS: [[(i32, i32); 5]; 4] = [
     [( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // North

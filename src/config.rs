@@ -9,17 +9,17 @@ lazy_static! {
     pub static ref MAX_FRAME_RATE: u64 = CONFIG
         .get_from_or(Some("display"), "max_frame_rate", "60")
         .parse()
-        .unwrap_or(60);
+        .unwrap_or_else(|_| panic!("Invalid max_frame_rate display config value"));
 
     pub static ref DISPLAY_FRAME_RATE: bool = CONFIG
         .get_from_or(Some("display"), "display_frame_rate", "false")
         .parse()
-        .unwrap_or(false);
+        .unwrap_or_else(|_| panic!("Invalid display_frame_rate display config value"));
 
     pub static ref USE_XTERM_256_COLORS: bool = CONFIG
         .get_from_or(Some("display"), "use_xterm_256_colors", "true")
         .parse()
-        .unwrap_or(true);
+        .unwrap_or_else(|_| panic!("Invalid use_xterm_256_colors display config value"));
 }
 
 pub mod controls {
