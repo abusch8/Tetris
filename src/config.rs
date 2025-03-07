@@ -20,6 +20,11 @@ lazy_static! {
         .get_from_or(Some("display"), "use_xterm_256_colors", "true")
         .parse()
         .unwrap_or_else(|_| panic!("Invalid use_xterm_256_colors display config value"));
+
+    pub static ref ENABLE_MULTIPLAYER: bool = CONFIG
+        .get_from_or(Some("experimental"), "enable_multiplayer", "false")
+        .parse()
+        .unwrap_or_else(|_| panic!("Invalid enable_multiplayer experiemental config value"));
 }
 
 pub mod controls {
