@@ -2,7 +2,6 @@ use std::{collections::HashSet, mem::replace, pin::Pin};
 use core::time::Duration;
 use crossterm::style::Color;
 use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
 use rand::{seq::SliceRandom, thread_rng};
 use strum::IntoEnumIterator;
 use tokio::time::{sleep, Sleep};
@@ -102,7 +101,7 @@ impl Game {
     }
 
     fn hitting_bottom(&self, tetromino: &Tetromino) -> bool {
-        tetromino.shape.iter().any(|position| {
+        tetromino.geometry.shape.iter().any(|position| {
             position.1 == 0 ||
             position.1 < BOARD_DIMENSION.1 &&
             self.stack[(position.1 - 1) as usize][position.0 as usize].is_some()
@@ -110,7 +109,7 @@ impl Game {
     }
 
     fn hitting_left(&self, tetromino: &Tetromino) -> bool {
-        tetromino.shape.iter().any(|position| {
+        tetromino.geometry.shape.iter().any(|position| {
             position.0 == 0 ||
             position.1 < BOARD_DIMENSION.1 &&
             self.stack[position.1 as usize][(position.0 - 1) as usize].is_some()
@@ -118,7 +117,7 @@ impl Game {
     }
 
     fn hitting_right(&self, tetromino: &Tetromino) -> bool {
-        tetromino.shape.iter().any(|position| {
+        tetromino.geometry.shape.iter().any(|position| {
             position.0 == BOARD_DIMENSION.0 - 1 ||
             position.1 < BOARD_DIMENSION.1 &&
             self.stack[position.1 as usize][(position.0 + 1) as usize].is_some()
@@ -128,11 +127,9 @@ impl Game {
     fn update_ghost(&mut self) {
         let mut ghost = self.falling.clone();
         while !self.hitting_bottom(&ghost) {
-            for position in ghost.shape.iter_mut() {
-                position.1 -= 1;
-            }
+            ghost.geometry.transform(0, -1);
         }
-        self.ghost = if self.overlapping(&ghost.shape) { None } else { Some(ghost) };
+        self.ghost = if self.overlapping(&ghost.geometry.shape) { None } else { Some(ghost) };
     }
 
     fn reset_lock_timer(&mut self, lock_delay: &mut Pin<&mut Sleep>) {
@@ -148,36 +145,27 @@ impl Game {
         line_clear_delay: &mut Pin<&mut Sleep>,
     ) {
         if self.lock_reset_count == LOCK_RESET_LIMIT {
-            self.place(line_clear_delay)
+            self.place(line_clear_delay);
         }
 
         match direction {
             ShiftDirection::Left => {
                 if !self.hitting_left(&self.falling) {
-                    for position in self.falling.shape.iter_mut() {
-                        position.0 -= 1;
-                    }
-                    self.falling.center.0 -= 1;
+                    self.falling.geometry.transform(-1, 0);
                     self.lock_reset_count += 1;
                     self.reset_lock_timer(lock_delay);
                 }
             },
             ShiftDirection::Right => {
                 if !self.hitting_right(&self.falling) {
-                    for position in self.falling.shape.iter_mut() {
-                        position.0 += 1;
-                    }
-                    self.falling.center.0 += 1;
+                    self.falling.geometry.transform(1, 0);
                     self.lock_reset_count += 1;
                     self.reset_lock_timer(lock_delay);
                 }
             },
             ShiftDirection::Down => {
                 if !self.hitting_bottom(&self.falling) {
-                    for position in self.falling.shape.iter_mut() {
-                        position.1 -= 1;
-                    }
-                    self.falling.center.1 -= 1;
+                    self.falling.geometry.transform(0, -1);
                     self.lock_reset_count = 0;
                     self.reset_lock_timer(lock_delay);
                 }
@@ -199,25 +187,8 @@ impl Game {
     }
 
     pub fn rotate(&mut self, direction: RotationDirection, lock_delay: &mut Pin<&mut Sleep>) {
-        let (angle, new_direction) = match direction {
-            RotationDirection::Clockwise => (
-                f32::from(-90.0).to_radians(),
-                CardinalDirection::from_i32((self.falling.direction as i32 + 1) % 4).unwrap(),
-            ),
-            RotationDirection::CounterClockwise => (
-                f32::from(90.0).to_radians(),
-                CardinalDirection::from_i32(((self.falling.direction as i32 - 1) % 4 + 4) % 4).unwrap(),
-            ),
-        };
-
-        let rotated: Vec<(i32, i32)> = self.falling.shape.iter().map(|&(x, y)| {
-            let x = (x - self.falling.center.0) as f32;
-            let y = (y - self.falling.center.1) as f32;
-            (
-                ((x * angle.cos() - y * angle.sin()) + self.falling.center.0 as f32).round() as i32,
-                ((x * angle.sin() + y * angle.cos()) + self.falling.center.1 as f32).round() as i32,
-            )
-        }).collect();
+        let mut rotated = self.falling.clone();
+        rotated.geometry.rotate(direction);
 
         let offset_table = match self.falling.variant {
             TetrominoVariant::J |
@@ -230,23 +201,22 @@ impl Game {
         };
 
         for i in 0..offset_table[0].len() {
-            let offset_x = offset_table[new_direction as usize][i].0
-                - offset_table[self.falling.direction as usize][i].0;
-            let offset_y = offset_table[new_direction as usize][i].1
-                - offset_table[self.falling.direction as usize][i].1;
+            let offset_x = offset_table[rotated.geometry.direction as usize][i].0
+                - offset_table[self.falling.geometry.direction as usize][i].0;
+            let offset_y = offset_table[rotated.geometry.direction as usize][i].1
+                - offset_table[self.falling.geometry.direction as usize][i].1;
 
-            let kicked = rotated.iter().map(|&(x, y)| (x - offset_x, y - offset_y)).collect();
+            rotated.geometry.transform(-offset_x, -offset_y);
 
-            if !self.overlapping(&kicked) {
-                self.falling.shape = kicked;
-                self.falling.center.0 -= offset_x;
-                self.falling.center.1 -= offset_y;
-                self.falling.direction = new_direction;
+            if !self.overlapping(&rotated.geometry.shape) {
+                self.falling = rotated;
                 self.lock_reset_count += 1;
                 self.update_ghost();
                 self.reset_lock_timer(lock_delay);
                 return
             }
+
+            rotated.geometry.transform(offset_x, offset_y);
         }
     }
 
@@ -313,7 +283,7 @@ impl Game {
             return
         }
 
-        for position in self.falling.shape.iter() {
+        for position in self.falling.geometry.shape.iter() {
             if position.1 > BOARD_DIMENSION.1 - 1 {
                 self.end = true;
                 return
@@ -326,10 +296,7 @@ impl Game {
         let mut falling = self.get_next();
         for i in 17..20 {
             if self.stack[i].iter().any(|block| block.is_some()) {
-                for position in falling.shape.iter_mut() {
-                    position.1 += 1;
-                }
-                falling.center.1 += 1;
+                falling.geometry.transform(0, 1);
             }
         }
 
@@ -351,10 +318,8 @@ impl Game {
 
     pub fn hard_drop(&mut self, line_clear_delay: &mut Pin<&mut Sleep>) {
         while !self.hitting_bottom(&self.falling) {
-            for position in self.falling.shape.iter_mut() {
-                position.1 -= 1;
-                self.score += 2;
-            }
+            self.falling.geometry.transform(0, -1);
+            self.score += 2;
         }
         self.place(line_clear_delay);
     }

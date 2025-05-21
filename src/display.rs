@@ -124,7 +124,7 @@ impl Display {
     }
 
     fn tetromino_at_position(&self, tetromino: &Tetromino, pos: &Dimension) -> bool {
-        tetromino.shape.iter().any(|(x, y)| {
+        tetromino.geometry.shape.iter().any(|(x, y)| {
             self.board_y.1 as i32 - y - 2 == pos.1 && (
                 self.board_x[0].0 as i32 + (x + 1) * 2 == pos.0 ||
                 self.board_x[0].0 as i32 + (x + 1) * 2 == pos.0 + 1
@@ -193,7 +193,7 @@ impl Display {
                 .queue(Print(CLEAR))?
                 .queue(MoveTo(self.board_x[0].0 - 10, 5))?
                 .queue(Print(CLEAR))?;
-            for position in holding.shape.iter().map(|&(x, y)| (x as u16, y as u16)) {
+            for position in holding.geometry.shape.iter().map(|&(x, y)| (x as u16, y as u16)) {
                 self.stdout
                     .queue(MoveTo((position.0 - 3) * 2 + self.board_x[0].0 - 10, self.board_y.1 - position.1 + 1))?
                     .queue(PrintStyledContent(" ".on(holding.color)))?
@@ -219,7 +219,7 @@ impl Display {
                 .queue(Print(CLEAR))?
                 .queue(MoveTo(self.board_x[0].1 + 1, 5 + (i as u16 * 3)))?
                 .queue(Print(CLEAR))?;
-            for position in tetromino.shape.iter().map(|&(x, y)| (x as u16, y as u16)) {
+            for position in tetromino.geometry.shape.iter().map(|&(x, y)| (x as u16, y as u16)) {
                 self.stdout
                     .queue(MoveTo((position.0 - 3) * 2 + self.board_x[0].1 + 2, self.board_y.1 - position.1 + 1 + (i as u16 * 3)))?
                     .queue(PrintStyledContent(" ".on(tetromino.color)))?

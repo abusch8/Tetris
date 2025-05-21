@@ -1,9 +1,9 @@
-use std::io::Result;
+use std::{io::Result, net::{SocketAddr, TcpListener, TcpStream}};
 use crossterm::event::EventStream;
 use futures::{stream::StreamExt, FutureExt};
-use tokio::{pin, select, time::{interval, sleep, Duration, Interval}};
+use tokio::{net::{TcpSocket, UdpSocket}, pin, select, time::{interval, sleep, Duration, Interval}};
 
-use crate::{config, display::Display, event::handle_event, game::{Game, ShiftDirection}};
+use crate::{config, debug_println, display::Display, event::handle_event, game::{Game, ShiftDirection}, tetromino::{CardinalDirection, Geometry}};
 
 fn calc_drop_interval(level: u32) -> Interval {
     let drop_rate = (0.8 - (level - 1) as f32 * 0.007).powf((level - 1) as f32);
@@ -16,7 +16,14 @@ fn calc_drop_interval(level: u32) -> Interval {
     })
 }
 
-pub async fn run(game: &mut Game) -> Result<()> {
+fn tcp_listen(tcp_listener: &TcpListener) -> (TcpStream, SocketAddr) {
+    match tcp_listener.accept() {
+        Ok(socket) => socket,
+        Err(_e) => tcp_listen(tcp_listener),
+    }
+}
+
+pub async fn run(game: &mut Game, is_host: bool) -> Result<()> {
     let mut reader = EventStream::new();
 
     let display = &mut Display::new()?;
@@ -41,6 +48,25 @@ pub async fn run(game: &mut Game) -> Result<()> {
     let mut debug_frame_interval = interval(Duration::from_secs(1));
     let mut debug_frame = 0u64;
 
+    let (tcp_stream, udp_socket) = if is_host {
+        let tcp_listener = TcpListener::bind(*config::BIND_ADDR).unwrap();
+        let (tcp_stream, peer_addr) = tcp_listen(&tcp_listener);
+
+        let udp_socket = UdpSocket::bind(*config::BIND_ADDR).await?;
+        udp_socket.connect(peer_addr).await?;
+
+        (tcp_stream, udp_socket)
+    } else {
+        let tcp_stream = TcpStream::connect(*config::CONN_ADDR).unwrap();
+
+        let udp_socket = UdpSocket::bind(tcp_stream.local_addr().unwrap()).await?;
+        udp_socket.connect(*config::CONN_ADDR).await?;
+
+        (tcp_stream, udp_socket)
+    };
+
+    let mut udp_buf = [0u8; 41];
+
     Ok(loop {
         select! {
             Some(Ok(event)) = reader.next().fuse() => {
@@ -50,7 +76,8 @@ pub async fn run(game: &mut Game) -> Result<()> {
                     display,
                     &mut lock_delay,
                     &mut line_clear_delay,
-                )?
+                    &udp_socket,
+                ).await?
             },
             _ = &mut lock_delay, if game.locking => {
                 game.place(&mut line_clear_delay);
@@ -68,6 +95,11 @@ pub async fn run(game: &mut Game) -> Result<()> {
             _ = debug_frame_interval.tick(), if *config::DISPLAY_FRAME_RATE => {
                 display.render_debug_info(debug_frame)?;
                 debug_frame = 0;
+            },
+            _ = udp_socket.recv(&mut udp_buf) => {
+                let geometry = Geometry::from_bytes(&udp_buf);
+
+                // debug_println!("UDP shape:{:?} center:{:?}", shape, center);
             },
             _ = async {}, if game.level != prev_level => {
                 prev_level = game.level;
