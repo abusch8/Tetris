@@ -17,7 +17,7 @@ pub enum Action {
 }
 
 async fn send_pos(udp_socket: &UdpSocket, game: &Game) -> Result<()> {
-    udp_socket.send(&game.falling.geometry.to_bytes()).await?;
+    udp_socket.send(&game.player[0].falling.geometry.to_bytes()).await?;
     Ok(())
 }
 
@@ -34,29 +34,29 @@ pub async fn handle_event(
             if kind == KeyEventKind::Press {
                 match config::controls::ACTION_MAP.get(&code) {
                     Some(Action::MoveRight) => {
-                        game.shift(ShiftDirection::Right, lock_delay, line_clear_delay);
+                        game.player[0].shift(ShiftDirection::Right, lock_delay, line_clear_delay);
                         send_pos(udp_socket, game).await?;
                     },
                     Some(Action::MoveLeft) => {
-                        game.shift(ShiftDirection::Left, lock_delay, line_clear_delay);
+                        game.player[0].shift(ShiftDirection::Left, lock_delay, line_clear_delay);
                         send_pos(udp_socket, game).await?;
                     },
                     Some(Action::RotateRight) => {
-                        game.rotate(RotationDirection::Clockwise, lock_delay);
+                        game.player[0].rotate(RotationDirection::Clockwise, lock_delay);
                         send_pos(udp_socket, game).await?;
                     },
                     Some(Action::RotateLeft) => {
-                        game.rotate(RotationDirection::CounterClockwise, lock_delay);
+                        game.player[0].rotate(RotationDirection::CounterClockwise, lock_delay);
                         send_pos(udp_socket, game).await?;
                     },
                     Some(Action::SoftDrop) => {
-                        game.soft_drop(lock_delay, line_clear_delay);
+                        game.player[0].soft_drop(lock_delay, line_clear_delay);
                     },
                     Some(Action::HardDrop) => {
-                        game.hard_drop(line_clear_delay);
+                        game.player[0].hard_drop(line_clear_delay);
                     },
                     Some(Action::Hold) => {
-                        game.hold();
+                        game.player[0].hold();
                     },
                     Some(Action::Quit) => {
                         game.end = true;

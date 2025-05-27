@@ -1,6 +1,7 @@
-use std::{io::Result, net::{SocketAddr, TcpListener, TcpStream}};
+use std::{io::{Read, Result, Write}, net::{SocketAddr, TcpListener, TcpStream}};
 use crossterm::event::EventStream;
 use futures::{stream::StreamExt, FutureExt};
+use rand::{rngs::StdRng, thread_rng, Rng, SeedableRng};
 use tokio::{net::{TcpSocket, UdpSocket}, pin, select, time::{interval, sleep, Duration, Interval}};
 
 use crate::{config, debug_println, display::Display, event::handle_event, game::{Game, ShiftDirection}, tetromino::{CardinalDirection, Geometry}};
@@ -36,9 +37,9 @@ pub async fn run(game: &mut Game, is_host: bool) -> Result<()> {
     });
 
     let mut render_interval = interval(frame_duration);
-    let mut drop_interval = calc_drop_interval(game.level);
+    let mut drop_interval = calc_drop_interval(game.player[0].level);
 
-    let mut prev_level = game.level;
+    let mut prev_level = game.player[0].level;
 
     pin! {
         let lock_delay = sleep(Duration::ZERO);
@@ -48,7 +49,7 @@ pub async fn run(game: &mut Game, is_host: bool) -> Result<()> {
     let mut debug_frame_interval = interval(Duration::from_secs(1));
     let mut debug_frame = 0u64;
 
-    let (tcp_stream, udp_socket) = if is_host {
+    let (mut tcp_stream, udp_socket) = if is_host {
         let tcp_listener = TcpListener::bind(*config::BIND_ADDR).unwrap();
         let (tcp_stream, peer_addr) = tcp_listen(&tcp_listener);
 
@@ -67,6 +68,16 @@ pub async fn run(game: &mut Game, is_host: bool) -> Result<()> {
 
     let mut udp_buf = [0u8; 41];
 
+    let seed = StdRng::seed_from_u64(if is_host {
+        let seed: u32 = thread_rng().gen();
+        tcp_stream.write_all(&seed.to_le_bytes())?;
+        seed as u64
+    } else {
+        let mut seed_buf = [0u8; 4];
+        tcp_stream.read_exact(&mut seed_buf)?;
+        u32::from_le_bytes(seed_buf) as u64
+    });
+
     Ok(loop {
         select! {
             Some(Ok(event)) = reader.next().fuse() => {
@@ -79,14 +90,14 @@ pub async fn run(game: &mut Game, is_host: bool) -> Result<()> {
                     &udp_socket,
                 ).await?
             },
-            _ = &mut lock_delay, if game.locking => {
-                game.place(&mut line_clear_delay);
+            _ = &mut lock_delay, if game.player[0].locking => {
+                game.player[0].place(&mut line_clear_delay);
             },
-            _ = &mut line_clear_delay, if game.clearing.len() > 0 => {
-                game.line_clear();
+            _ = &mut line_clear_delay, if game.player[0].clearing.len() > 0 => {
+                game.player[0].line_clear();
             },
             _ = drop_interval.tick() => {
-                game.shift(ShiftDirection::Down, &mut lock_delay, &mut line_clear_delay);
+                game.player[0].shift(ShiftDirection::Down, &mut lock_delay, &mut line_clear_delay);
             },
             _ = render_interval.tick() => {
                 display.render(game)?;
@@ -97,13 +108,14 @@ pub async fn run(game: &mut Game, is_host: bool) -> Result<()> {
                 debug_frame = 0;
             },
             _ = udp_socket.recv(&mut udp_buf) => {
-                let geometry = Geometry::from_bytes(&udp_buf);
+                game.player[1].falling.geometry = Geometry::from_bytes(&udp_buf);
+                debug_println!("{:?}", game.player[1].falling.geometry);
 
                 // debug_println!("UDP shape:{:?} center:{:?}", shape, center);
             },
-            _ = async {}, if game.level != prev_level => {
-                prev_level = game.level;
-                drop_interval = calc_drop_interval(game.level);
+            _ = async {}, if game.player[0].level != prev_level => {
+                prev_level = game.player[0].level;
+                drop_interval = calc_drop_interval(game.player[0].level);
             },
             _ = async {}, if game.end => {
                 break;

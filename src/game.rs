@@ -48,14 +48,13 @@ fn rand_bag_gen() -> Vec<Tetromino> {
     bag
 }
 
-pub struct Game {
+pub struct Player {
     pub falling: Tetromino,
     pub holding: Option<Tetromino>,
     pub ghost: Option<Tetromino>,
     pub next: Vec<Tetromino>,
     pub bag: Vec<Tetromino>,
     pub stack: Vec<Vec<Option<Color>>>,
-    pub start_level: u32,
     pub score: u32,
     pub level: u32,
     pub lines: u32,
@@ -64,20 +63,18 @@ pub struct Game {
     pub can_hold: bool,
     pub locking: bool,
     pub lock_reset_count: u8,
-    pub end: bool,
 }
 
-impl Game {
-    pub fn start(start_level: u32) -> Self {
+impl Player {
+    fn new(start_level: u32) -> Self {
         let mut bag = rand_bag_gen();
-        let mut game = Game {
+        Player {
             falling: bag.pop().unwrap(),
             holding: None,
             ghost: None,
             next: bag.split_off(bag.len() - 3),
             bag,
             stack: vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize],
-            start_level,
             score: 0,
             level: start_level,
             lines: 0,
@@ -86,10 +83,7 @@ impl Game {
             can_hold: true,
             locking: false,
             lock_reset_count: 0,
-            end: false,
-        };
-        game.update_ghost();
-        game
+        }
     }
 
     fn get_next(&mut self) -> Tetromino {
@@ -130,6 +124,16 @@ impl Game {
             ghost.geometry.transform(0, -1);
         }
         self.ghost = if self.overlapping(&ghost.geometry.shape) { None } else { Some(ghost) };
+    }
+
+    fn overlapping(&self, shape: &Shape) -> bool {
+        shape.iter().any(|position| {
+            position.0 < 0 ||
+            position.1 < 0 ||
+            position.0 > BOARD_DIMENSION.0 - 1 ||
+            position.1 > BOARD_DIMENSION.1 - 1 ||
+            self.stack[position.1 as usize][position.0 as usize].is_some()
+        })
     }
 
     fn reset_lock_timer(&mut self, lock_delay: &mut Pin<&mut Sleep>) {
@@ -174,16 +178,6 @@ impl Game {
         }
 
         self.update_ghost();
-    }
-
-    fn overlapping(&self, shape: &Shape) -> bool {
-        shape.iter().any(|position| {
-            position.0 < 0 ||
-            position.1 < 0 ||
-            position.0 > BOARD_DIMENSION.0 - 1 ||
-            position.1 > BOARD_DIMENSION.1 - 1 ||
-            self.stack[position.1 as usize][position.0 as usize].is_some()
-        })
     }
 
     pub fn rotate(&mut self, direction: RotationDirection, lock_delay: &mut Pin<&mut Sleep>) {
@@ -245,7 +239,7 @@ impl Game {
 
         if num_cleared > 0 {
             self.lines += num_cleared;
-            self.level = self.start_level + self.lines / 10;
+            self.level = self.lines / 10; // self.start_level + self.lines / 10;
             self.combo += 1;
             self.calc_score(num_cleared);
             self.update_ghost();
@@ -285,7 +279,7 @@ impl Game {
 
         for position in self.falling.geometry.shape.iter() {
             if position.1 > BOARD_DIMENSION.1 - 1 {
-                self.end = true;
+                // self.end = true;
                 return
             }
             self.stack[position.1 as usize][position.0 as usize] = Some(self.falling.color);
@@ -334,6 +328,29 @@ impl Game {
 
             self.update_ghost();
         }
+    }
+}
+
+pub struct Game {
+    pub player: Vec<Player>,
+    pub start_level: u32,
+    pub end: bool,
+}
+
+impl Game {
+    pub fn start(start_level: u32, is_multiplayer: bool) -> Self {
+        let mut game = Game {
+            player: vec![Player::new(start_level)],
+            start_level,
+            end: false,
+        };
+        if is_multiplayer {
+            game.player.push(Player::new(start_level));
+        }
+        game.player
+            .iter_mut()
+            .for_each(|p| p.update_ghost());
+        game
     }
 }
 

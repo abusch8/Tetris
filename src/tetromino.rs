@@ -7,13 +7,13 @@ use crate::{config, display::Dimension, game::RotationDirection};
 
 pub type Shape = Vec<Dimension>;
 
-#[derive(Clone, Copy, FromPrimitive, ToPrimitive, PartialEq)]
+#[derive(Clone, Copy, FromPrimitive, ToPrimitive, PartialEq, Debug)]
 pub enum CardinalDirection { North, East, South, West }
 
 #[derive(Clone, Copy, EnumIter, FromPrimitive, ToPrimitive, PartialEq)]
 pub enum TetrominoVariant { I, J, L, O, S, T, Z }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Geometry {
     pub shape: Shape,
     pub center: Dimension,

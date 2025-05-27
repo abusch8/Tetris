@@ -27,17 +27,18 @@ async fn main() -> Result<()> {
     let args = args().collect::<Vec<String>>();
     let level = 1; // if args.len() == 2 { args[1].parse::<u32>().unwrap() } else { 1 };
     let is_host = args.len() == 2 && args[1] == "host";
+    let is_multiplayer = true;
 
     enable_raw_mode()?;
     execute!(stdout, Hide, Clear(ClearType::All), SetTitle("TETRIS"))?;
 
-    let game = &mut Game::start(level);
+    let game = &mut Game::start(level, is_multiplayer);
     run(game, is_host).await?;
 
     execute!(stdout, Show, Clear(ClearType::All))?;
     disable_raw_mode()?;
 
-    println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.score, game.level, game.lines);
+    println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.player[0].score, game.player[0].level, game.player[0].lines);
 
     debug_window.close();
 

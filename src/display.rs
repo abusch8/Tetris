@@ -75,7 +75,7 @@ impl Display {
         self.prev_hold = None;
         self.prev_next = None;
 
-        for board_x in &self.board_x {
+        for board_x in self.board_x.iter() {
             for x in board_x.0..board_x.1 {
                 for y in self.board_y.0..self.board_y.1 {
                     self.stdout
@@ -123,17 +123,17 @@ impl Display {
         Ok(self.stdout.flush()?)
     }
 
-    fn tetromino_at_position(&self, tetromino: &Tetromino, pos: &Dimension) -> bool {
+    fn tetromino_at_position(&self, tetromino: &Tetromino, pos: &Dimension, i: usize) -> bool {
         tetromino.geometry.shape.iter().any(|(x, y)| {
             self.board_y.1 as i32 - y - 2 == pos.1 && (
-                self.board_x[0].0 as i32 + (x + 1) * 2 == pos.0 ||
-                self.board_x[0].0 as i32 + (x + 1) * 2 == pos.0 + 1
+                self.board_x[i].0 as i32 + (x + 1) * 2 == pos.0 ||
+                self.board_x[i].0 as i32 + (x + 1) * 2 == pos.0 + 1
             )
         })
     }
 
     fn render_board(&mut self, game: &Game) -> Result<&mut Self> {
-        for board_x in &self.board_x {
+        for (i, board_x) in self.board_x.iter().enumerate() {
             for x in board_x.0 + 1..board_x.1 - 1 {
                 for y in self.board_y.0 + 1..self.board_y.1 - 1 {
                     let pos = &(x as i32, y as i32);
@@ -146,25 +146,25 @@ impl Display {
                         }
                     );
 
-                    if let Some(ghost) = &game.ghost {
-                        if self.tetromino_at_position(ghost, pos) {
-                            content = "░".with(game.falling.color);
+                    if let Some(ghost) = &game.player[i].ghost {
+                        if self.tetromino_at_position(ghost, pos, i) {
+                            content = "░".with(game.player[i].falling.color);
                         }
                     }
 
-                    if self.tetromino_at_position(&game.falling, pos) {
-                        content = if game.locking {
-                            "▓".with(game.falling.color)
+                    if self.tetromino_at_position(&game.player[i].falling, pos, i) {
+                        content = if game.player[i].locking {
+                            "▓".with(game.player[i].falling.color)
                         } else {
-                            " ".on(game.falling.color)
+                            " ".on(game.player[i].falling.color)
                         };
                     }
 
-                    let i = (self.board_y.1 - 2 - y) as usize;
-                    let j = ((x - board_x.0 - 1) / 2) as usize;
+                    let j = (self.board_y.1 - 2 - y) as usize;
+                    let k = ((x - board_x.0 - 1) / 2) as usize;
 
-                    if let Some(color) = game.stack[i][j] {
-                        content = if game.clearing.get(&i).is_some() {
+                    if let Some(color) = game.player[i].stack[j][k] {
+                        content = if game.player[i].clearing.get(&j).is_some() {
                             "▓".with(Color::White)
                         } else {
                             " ".on(color)
@@ -177,68 +177,68 @@ impl Display {
                 }
             }
         }
-
         Ok(self)
     }
 
     fn render_hold(&mut self, game: &Game) -> Result<&mut Self> {
-        if let Some(holding) = &game.holding {
-            if self.prev_hold == Some(holding.variant) {
-                return Ok(self)
-            }
-            self.prev_hold = Some(holding.variant);
+        for (i, board_x) in self.board_x.iter().enumerate() {
+            if let Some(holding) = &game.player[i].holding {
+                if self.prev_hold == Some(holding.variant) {
+                    return Ok(self)
+                }
+                self.prev_hold = Some(holding.variant);
 
-            self.stdout
-                .queue(MoveTo(self.board_x[0].0 - 10, 4))?
-                .queue(Print(CLEAR))?
-                .queue(MoveTo(self.board_x[0].0 - 10, 5))?
-                .queue(Print(CLEAR))?;
-            for position in holding.geometry.shape.iter().map(|&(x, y)| (x as u16, y as u16)) {
                 self.stdout
-                    .queue(MoveTo((position.0 - 3) * 2 + self.board_x[0].0 - 10, self.board_y.1 - position.1 + 1))?
-                    .queue(PrintStyledContent(" ".on(holding.color)))?
-                    .queue(MoveTo((position.0 - 3) * 2 + self.board_x[0].0 - 9, self.board_y.1 - position.1 + 1))?
-                    .queue(PrintStyledContent(" ".on(holding.color)))?;
+                    .queue(MoveTo(board_x.0 - 10, 4))?
+                    .queue(Print(CLEAR))?
+                    .queue(MoveTo(board_x.0 - 10, 5))?
+                    .queue(Print(CLEAR))?;
+                for position in holding.geometry.shape.iter().map(|&(x, y)| (x as u16, y as u16)) {
+                    self.stdout
+                        .queue(MoveTo((position.0 - 3) * 2 + board_x.0 - 10, self.board_y.1 - position.1 + 1))?
+                        .queue(PrintStyledContent(" ".on(holding.color)))?
+                        .queue(MoveTo((position.0 - 3) * 2 + board_x.0 - 9, self.board_y.1 - position.1 + 1))?
+                        .queue(PrintStyledContent(" ".on(holding.color)))?;
+                }
             }
         }
-
         Ok(self)
     }
 
     fn render_next(&mut self, game: &Game) -> Result<&mut Self> {
-        if let Some(next) = &game.next.get(0) {
-            if self.prev_next == Some(next.variant) {
-                return Ok(self)
+        for (i, board_x) in self.board_x.iter().enumerate() {
+            if let Some(next) = &game.player[i].next.get(0) {
+                if self.prev_next == Some(next.variant) {
+                    return Ok(self)
+                }
+                self.prev_next = Some(next.variant);
             }
-            self.prev_next = Some(next.variant);
-        }
-
-        for (i, tetromino) in game.next.iter().enumerate() {
-            self.stdout
-                .queue(MoveTo(self.board_x[0].1 + 1, 4 + (i as u16 * 3)))?
-                .queue(Print(CLEAR))?
-                .queue(MoveTo(self.board_x[0].1 + 1, 5 + (i as u16 * 3)))?
-                .queue(Print(CLEAR))?;
-            for position in tetromino.geometry.shape.iter().map(|&(x, y)| (x as u16, y as u16)) {
+            for (i, tetromino) in game.player[i].next.iter().enumerate() {
                 self.stdout
-                    .queue(MoveTo((position.0 - 3) * 2 + self.board_x[0].1 + 2, self.board_y.1 - position.1 + 1 + (i as u16 * 3)))?
-                    .queue(PrintStyledContent(" ".on(tetromino.color)))?
-                    .queue(MoveTo((position.0 - 3) * 2 + self.board_x[0].1 + 1, self.board_y.1 - position.1 + 1 + (i as u16 * 3)))?
-                    .queue(PrintStyledContent(" ".on(tetromino.color)))?;
+                    .queue(MoveTo(board_x.1 + 1, 4 + (i as u16 * 3)))?
+                    .queue(Print(CLEAR))?
+                    .queue(MoveTo(board_x.1 + 1, 5 + (i as u16 * 3)))?
+                    .queue(Print(CLEAR))?;
+                for position in tetromino.geometry.shape.iter().map(|&(x, y)| (x as u16, y as u16)) {
+                    self.stdout
+                        .queue(MoveTo((position.0 - 3) * 2 + board_x.1 + 2, self.board_y.1 - position.1 + 1 + (i as u16 * 3)))?
+                        .queue(PrintStyledContent(" ".on(tetromino.color)))?
+                        .queue(MoveTo((position.0 - 3) * 2 + board_x.1 + 1, self.board_y.1 - position.1 + 1 + (i as u16 * 3)))?
+                        .queue(PrintStyledContent(" ".on(tetromino.color)))?;
+                }
             }
         }
-
         Ok(self)
     }
 
     fn render_stats(&mut self, game: &Game) -> Result<&mut Self> {
         self.stdout
             .queue(MoveTo(self.board_x[0].1 + 1, 17))?
-            .queue(Print(format!("SCORE: {}", game.score)))?
+            .queue(Print(format!("SCORE: {}", game.player[0].score)))?
             .queue(MoveTo(self.board_x[0].1 + 1, 18))?
-            .queue(Print(format!("LEVEL: {}", game.level)))?
+            .queue(Print(format!("LEVEL: {}", game.player[0].level)))?
             .queue(MoveTo(self.board_x[0].1 + 1, 19))?
-            .queue(Print(format!("LINES: {}", game.lines)))?
+            .queue(Print(format!("LINES: {}", game.player[0].lines)))?
             .queue(MoveTo(0, 0))?;
 
         Ok(self)
