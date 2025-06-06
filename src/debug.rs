@@ -27,24 +27,22 @@ pub struct DebugWindow {
 }
 
 impl DebugWindow {
-    pub fn new() -> DebugWindow {
-        let child = if !Path::new(DEBUG_PATH).exists() {
-            Command::new("mkfifo").arg(DEBUG_PATH).output().unwrap();
-            Some(Command::new("kitty")
-                .arg("--title")
-                .arg("TETRIS - Debug")
-                .arg("bash")
-                .arg("-c")
-                .arg(format!("tail -f {}", DEBUG_PATH))
-                .spawn()
-                .unwrap())
-        } else {
-            None
-        };
-
-        sleep(Duration::from_secs(1));
-
-        DebugWindow { child }
+    pub fn new() -> Self {
+        DebugWindow {
+            child: if !Path::new(DEBUG_PATH).exists() {
+                Command::new("mkfifo").arg(DEBUG_PATH).output().unwrap();
+                Some(Command::new("kitty")
+                    .arg("--title")
+                    .arg("TETRIS - Debug")
+                    .arg("bash")
+                    .arg("-c")
+                    .arg(format!("tail -f {}", DEBUG_PATH))
+                    .spawn()
+                    .unwrap())
+            } else {
+                None
+            }
+        }
     }
 
     pub fn close(mut self) {

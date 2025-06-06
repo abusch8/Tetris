@@ -232,15 +232,16 @@ impl Display {
     }
 
     fn render_stats(&mut self, game: &Game) -> Result<&mut Self> {
-        self.stdout
-            .queue(MoveTo(self.board_x[0].1 + 1, 17))?
-            .queue(Print(format!("SCORE: {}", game.player[0].score)))?
-            .queue(MoveTo(self.board_x[0].1 + 1, 18))?
-            .queue(Print(format!("LEVEL: {}", game.player[0].level)))?
-            .queue(MoveTo(self.board_x[0].1 + 1, 19))?
-            .queue(Print(format!("LINES: {}", game.player[0].lines)))?
-            .queue(MoveTo(0, 0))?;
-
+        for (i, board_x) in self.board_x.iter().enumerate() {
+            self.stdout
+                .queue(MoveTo(board_x.1 + 1, 17))?
+                .queue(Print(format!("SCORE: {}", game.player[i].score)))?
+                .queue(MoveTo(board_x.1 + 1, 18))?
+                .queue(Print(format!("LEVEL: {}", game.player[i].level)))?
+                .queue(MoveTo(board_x.1 + 1, 19))?
+                .queue(Print(format!("LINES: {}", game.player[i].lines)))?
+                .queue(MoveTo(0, 0))?;
+        }
         Ok(self)
     }
 

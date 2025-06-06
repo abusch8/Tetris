@@ -3,14 +3,14 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use strum_macros::EnumIter;
 
-use crate::{config, display::Dimension, game::RotationDirection};
+use crate::{config, display::Dimension, player::RotationDirection};
 
 pub type Shape = Vec<Dimension>;
 
 #[derive(Clone, Copy, FromPrimitive, ToPrimitive, PartialEq, Debug)]
 pub enum CardinalDirection { North, East, South, West }
 
-#[derive(Clone, Copy, EnumIter, FromPrimitive, ToPrimitive, PartialEq)]
+#[derive(Clone, Copy, EnumIter, FromPrimitive, ToPrimitive, PartialEq, Debug)]
 pub enum TetrominoVariant { I, J, L, O, S, T, Z }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -94,7 +94,7 @@ impl Geometry {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Tetromino {
     pub geometry: Geometry,
     pub color: Color,
