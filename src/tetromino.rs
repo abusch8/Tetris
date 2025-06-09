@@ -3,7 +3,7 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use strum_macros::EnumIter;
 
-use crate::{config, display::Dimension, player::RotationDirection};
+use crate::{config, display::{Dimension, BOARD_DIMENSION}, game::RotationDirection, player::Stack};
 
 pub type Shape = Vec<Dimension>;
 
@@ -168,6 +168,40 @@ impl Tetromino {
                 variant,
             },
         }
+    }
+
+    pub fn overlapping(&self, stack: &Stack) -> bool {
+        self.geometry.shape.iter().any(|position| {
+            position.0 < 0 ||
+            position.1 < 0 ||
+            position.0 > BOARD_DIMENSION.0 - 1 ||
+            position.1 > BOARD_DIMENSION.1 - 1 ||
+            stack[position.1 as usize][position.0 as usize].is_some()
+        })
+    }
+
+    pub fn hitting_bottom(&self, stack: &Stack) -> bool {
+        self.geometry.shape.iter().any(|position| {
+            position.1 == 0 ||
+            position.1 < BOARD_DIMENSION.1 &&
+            stack[(position.1 - 1) as usize][position.0 as usize].is_some()
+        })
+    }
+
+    pub fn hitting_left(&self, stack: &Stack) -> bool {
+        self.geometry.shape.iter().any(|position| {
+            position.0 == 0 ||
+            position.1 < BOARD_DIMENSION.1 &&
+            stack[position.1 as usize][(position.0 - 1) as usize].is_some()
+        })
+    }
+
+    pub fn hitting_right(&self, stack: &Stack) -> bool {
+        self.geometry.shape.iter().any(|position| {
+            position.0 == BOARD_DIMENSION.0 - 1 ||
+            position.1 < BOARD_DIMENSION.1 &&
+            stack[position.1 as usize][(position.0 + 1) as usize].is_some()
+        })
     }
 }
 

@@ -146,25 +146,25 @@ impl Display {
                         }
                     );
 
-                    if let Some(ghost) = &game.player[i].ghost {
+                    if let Some(ghost) = &game.players[i].ghost {
                         if self.tetromino_at_position(ghost, pos, i) {
-                            content = "░".with(game.player[i].falling.color);
+                            content = "░".with(game.players[i].falling.color);
                         }
                     }
 
-                    if self.tetromino_at_position(&game.player[i].falling, pos, i) {
-                        content = if game.player[i].locking {
-                            "▓".with(game.player[i].falling.color)
+                    if self.tetromino_at_position(&game.players[i].falling, pos, i) {
+                        content = if game.players[i].locking {
+                            "▓".with(game.players[i].falling.color)
                         } else {
-                            " ".on(game.player[i].falling.color)
+                            " ".on(game.players[i].falling.color)
                         };
                     }
 
                     let j = (self.board_y.1 - 2 - y) as usize;
                     let k = ((x - board_x.0 - 1) / 2) as usize;
 
-                    if let Some(color) = game.player[i].stack[j][k] {
-                        content = if game.player[i].clearing.get(&j).is_some() {
+                    if let Some(color) = game.players[i].stack[j][k] {
+                        content = if game.players[i].clearing.get(&j).is_some() {
                             "▓".with(Color::White)
                         } else {
                             " ".on(color)
@@ -182,7 +182,7 @@ impl Display {
 
     fn render_hold(&mut self, game: &Game) -> Result<&mut Self> {
         for (i, board_x) in self.board_x.iter().enumerate() {
-            if let Some(holding) = &game.player[i].holding {
+            if let Some(holding) = &game.players[i].holding {
                 if self.prev_hold == Some(holding.variant) {
                     return Ok(self)
                 }
@@ -207,13 +207,13 @@ impl Display {
 
     fn render_next(&mut self, game: &Game) -> Result<&mut Self> {
         for (i, board_x) in self.board_x.iter().enumerate() {
-            if let Some(next) = &game.player[i].next.get(0) {
+            if let Some(next) = &game.players[i].next.get(0) {
                 if self.prev_next == Some(next.variant) {
                     return Ok(self)
                 }
                 self.prev_next = Some(next.variant);
             }
-            for (i, tetromino) in game.player[i].next.iter().enumerate() {
+            for (i, tetromino) in game.players[i].next.iter().enumerate() {
                 self.stdout
                     .queue(MoveTo(board_x.1 + 1, 4 + (i as u16 * 3)))?
                     .queue(Print(CLEAR))?
@@ -235,11 +235,11 @@ impl Display {
         for (i, board_x) in self.board_x.iter().enumerate() {
             self.stdout
                 .queue(MoveTo(board_x.1 + 1, 17))?
-                .queue(Print(format!("SCORE: {}", game.player[i].score)))?
+                .queue(Print(format!("SCORE: {}", game.players[i].score)))?
                 .queue(MoveTo(board_x.1 + 1, 18))?
-                .queue(Print(format!("LEVEL: {}", game.player[i].level)))?
+                .queue(Print(format!("LEVEL: {}", game.players[i].level)))?
                 .queue(MoveTo(board_x.1 + 1, 19))?
-                .queue(Print(format!("LINES: {}", game.player[i].lines)))?
+                .queue(Print(format!("LINES: {}", game.players[i].lines)))?
                 .queue(MoveTo(0, 0))?;
         }
         Ok(self)

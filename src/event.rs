@@ -2,7 +2,7 @@ use std::{io::Result, pin::Pin};
 use crossterm::event::{Event, KeyEvent, KeyEventKind};
 use tokio::time::Sleep;
 
-use crate::{config, conn::{Conn, ConnTrait}, debug_println, display::Display, game::Game, player::{RotationDirection, ShiftDirection}};
+use crate::{config, conn::ConnTrait, display::Display, game::{Game, RotationDirection, ShiftDirection}, player::PlayerKind};
 
 #[derive(Clone)]
 pub enum Action {
@@ -29,32 +29,54 @@ pub async fn handle_event(
             if kind == KeyEventKind::Press {
                 match config::controls::ACTION_MAP.get(&code) {
                     Some(Action::MoveRight) => {
-                        game.player[0].shift(ShiftDirection::Right, lock_delay, line_clear_delay);
-                        conn.send_pos(game).await?;
+                        game.players[PlayerKind::Local].shift(
+                            ShiftDirection::Right,
+                            lock_delay,
+                            line_clear_delay,
+                            conn,
+                        ).await?;
                     },
                     Some(Action::MoveLeft) => {
-                        game.player[0].shift(ShiftDirection::Left, lock_delay, line_clear_delay);
-                        conn.send_pos(game).await?;
+                        game.players[PlayerKind::Local].shift(
+                            ShiftDirection::Left,
+                            lock_delay,
+                            line_clear_delay,
+                            conn,
+                        ).await?;
                     },
                     Some(Action::RotateRight) => {
-                        game.player[0].rotate(RotationDirection::Clockwise, lock_delay);
-                        conn.send_pos(game).await?;
+                        game.players[PlayerKind::Local].rotate(
+                            RotationDirection::Clockwise,
+                            lock_delay,
+                            conn,
+                        ).await?;
                     },
                     Some(Action::RotateLeft) => {
-                        game.player[0].rotate(RotationDirection::CounterClockwise, lock_delay);
-                        conn.send_pos(game).await?;
+                        game.players[PlayerKind::Local].rotate(
+                            RotationDirection::CounterClockwise,
+                            lock_delay,
+                            conn,
+                        ).await?;
                     },
                     Some(Action::SoftDrop) => {
-                        game.player[0].soft_drop(lock_delay, line_clear_delay);
+                        game.players[PlayerKind::Local].soft_drop(
+                            lock_delay,
+                            conn,
+                        ).await?;
                     },
                     Some(Action::HardDrop) => {
-                        game.player[0].hard_drop(line_clear_delay);
+                        game.players[PlayerKind::Local].hard_drop(
+                            line_clear_delay,
+                            conn,
+                        ).await?;
                     },
                     Some(Action::Hold) => {
-                        game.player[0].hold();
+                        game.players[PlayerKind::Local].hold(
+                            conn,
+                        ).await?;
                     },
                     Some(Action::Quit) => {
-                        game.player[0].lost = true;
+                        game.players[PlayerKind::Local].lost = true;
                     },
                     None => (),
                 }

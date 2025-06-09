@@ -1,10 +1,28 @@
-use std::io::Result;
-use rand::{rngs::StdRng, thread_rng, Rng, SeedableRng};
+use std::io::{Error, ErrorKind, Result};
+use rand::{rngs::StdRng, seq::SliceRandom, thread_rng, Rng, SeedableRng};
+use num_derive::FromPrimitive;
+use strum::IntoEnumIterator;
 
-use crate::{conn::{Conn, ConnTrait}, debug_println, player::Player};
+use crate::{conn::{ConnTrait, TcpPacketMode}, player::{Player, PlayerKind}, tetromino::{Tetromino, TetrominoVariant}};
+
+
+#[derive(FromPrimitive, PartialEq)]
+pub enum ShiftDirection { Left, Right }
+
+#[derive(PartialEq)]
+pub enum RotationDirection { Clockwise, CounterClockwise }
+
+pub fn rand_bag_gen(seed: &mut StdRng) -> Vec<Tetromino> {
+    let mut bag = TetrominoVariant::iter()
+        .map(|variant| Tetromino::new(variant))
+        .collect::<Vec<Tetromino>>();
+
+    bag.shuffle(seed);
+    bag
+}
 
 pub struct Game {
-    pub player: Vec<Player>,
+    pub players: Vec<Player>,
 }
 
 impl Game {
@@ -14,16 +32,16 @@ impl Game {
         let mut seeds = Game::generate_seeds(conn).await?;
 
         let mut game = Game {
-            player: vec![
-                Player::new(start_level, &mut seeds[seed_idx ^ 1]),
+            players: vec![
+                Player::new(PlayerKind::Local, start_level, &mut seeds[seed_idx ^ 1]),
             ],
         };
         if conn.is_multiplayer() {
-            game.player.push(
-                Player::new(start_level, &mut seeds[seed_idx]),
+            game.players.push(
+                Player::new(PlayerKind::Remote, start_level, &mut seeds[seed_idx]),
             );
         }
-        game.player
+        game.players
             .iter_mut()
             .for_each(|p| p.update_ghost());
 
@@ -41,11 +59,19 @@ impl Game {
                     StdRng::seed_from_u64(p2_seed),
                 ])
             } else {
-                let (p1_seed, p2_seed) = conn.recv_seeds().await?;
-                Ok(vec![
-                    StdRng::seed_from_u64(p1_seed),
-                    StdRng::seed_from_u64(p2_seed),
-                ])
+                let (mode, payload) = conn.recv_tcp().await?;
+                if let TcpPacketMode::Seeds = mode {
+                    let p1_seed_bytes: &[u8; 8] = payload[0..8].try_into().unwrap();
+                    let p2_seed_bytes: &[u8; 8] = payload[8..16].try_into().unwrap();
+                    let p1_seed = u64::from_le_bytes(*p1_seed_bytes);
+                    let p2_seed = u64::from_le_bytes(*p2_seed_bytes);
+                    Ok(vec![
+                        StdRng::seed_from_u64(p1_seed),
+                        StdRng::seed_from_u64(p2_seed),
+                    ])
+                } else {
+                    Err(Error::new(ErrorKind::InvalidData, ""))
+                }
             }
         } else {
             Ok(vec![StdRng::seed_from_u64(thread_rng().gen::<u64>())])

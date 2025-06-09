@@ -22,7 +22,7 @@ mod tetromino;
 async fn main() -> Result<()> {
     let mut stdout = stdout();
 
-    let debug_window = DebugWindow::new();
+    // let debug_window = DebugWindow::new();
 
     // debug_println!("peer:{} bind:{}", *config::CONN_ADDR, *config::BIND_ADDR);
 
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
 
     // println!("SCORE: {}\nLEVEL: {}\nLINES: {}", game.player[0].score, game.player[0].level, game.player[0].lines);
 
-    debug_window.close();
+    // debug_window.close();
 
     Ok(())
 }
