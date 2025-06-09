@@ -192,7 +192,7 @@ impl Player {
         direction: ShiftDirection,
         lock_delay: &mut Pin<&mut Sleep>,
         line_clear_delay: &mut Pin<&mut Sleep>,
-        conn: &mut Box<dyn ConnTrait>,
+        conn: &Box<dyn ConnTrait>,
     ) -> Result<()> {
         match self.kind {
             PlayerKind::Local => {
@@ -241,7 +241,7 @@ impl Player {
         &mut self,
         direction: RotationDirection,
         lock_delay: &mut Pin<&mut Sleep>,
-        conn: &mut Box<dyn ConnTrait>,
+        conn: &Box<dyn ConnTrait>,
     ) -> Result<()> {
         let mut rotated = self.falling.clone();
         rotated.geometry.rotate(direction);
@@ -286,7 +286,7 @@ impl Player {
     pub async fn place(
         &mut self,
         line_clear_delay: &mut Pin<&mut Sleep>,
-        conn: &mut Box<dyn ConnTrait>,
+        conn: &Box<dyn ConnTrait>,
     ) -> Result<()> {
         if !self.falling.hitting_bottom(&self.stack) {
             return Ok(())
@@ -324,7 +324,7 @@ impl Player {
         Ok(())
     }
 
-    pub async fn hold(&mut self, conn: &mut Box<dyn ConnTrait>) -> Result<()> {
+    pub async fn hold(&mut self, conn: &Box<dyn ConnTrait>) -> Result<()> {
         if self.can_hold {
             let swap = self.holding.clone().unwrap_or_else(|| self.get_next());
 
@@ -353,7 +353,7 @@ impl Player {
     pub async fn soft_drop(
         &mut self,
         lock_delay: &mut Pin<&mut Sleep>,
-        conn: &mut Box<dyn ConnTrait>,
+        conn: &Box<dyn ConnTrait>,
     ) -> Result<()> {
         self.drop(lock_delay);
         if !self.falling.hitting_bottom(&self.stack) {
@@ -366,7 +366,7 @@ impl Player {
     pub async fn hard_drop(
         &mut self,
         line_clear_delay: &mut Pin<&mut Sleep>,
-        conn: &mut Box<dyn ConnTrait>,
+        conn: &Box<dyn ConnTrait>,
     ) -> Result<()> {
         while !self.falling.hitting_bottom(&self.stack) {
             self.falling.geometry.transform(0, -1);

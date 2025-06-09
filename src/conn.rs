@@ -207,7 +207,7 @@ impl ConnTrait for DummyConn {
     }
 
     fn is_host(&self) -> bool {
-        false
+        true
     }
 }
 

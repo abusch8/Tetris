@@ -48,7 +48,7 @@ impl Game {
         Ok(game)
     }
 
-    async fn generate_seeds(conn: &mut Box<dyn ConnTrait>) -> Result<Vec<StdRng>> {
+    async fn generate_seeds(conn: &Box<dyn ConnTrait>) -> Result<Vec<StdRng>> {
         if conn.is_multiplayer() {
             if conn.is_host() {
                 let p1_seed = thread_rng().gen::<u64>();
@@ -74,7 +74,9 @@ impl Game {
                 }
             }
         } else {
-            Ok(vec![StdRng::seed_from_u64(thread_rng().gen::<u64>())])
+            Ok(vec![
+                StdRng::seed_from_u64(thread_rng().gen::<u64>()),
+            ])
         }
     }
 }

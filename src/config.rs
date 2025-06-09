@@ -51,7 +51,6 @@ pub mod controls {
 
     fn key_map(key: &str, action: Action) -> HashMap<KeyCode, Action> {
         let mut action_map = HashMap::new();
-        let key = key.trim();
         if key.len() == 1 && key.is_ascii() {
             let char = key.chars().next().unwrap();
             action_map.insert(KeyCode::Char(char.to_ascii_uppercase()), action.clone());
@@ -75,51 +74,59 @@ pub mod controls {
             let mut action_map = HashMap::new();
 
             action_map.extend(CONFIG
-                .get_from_or(Some("controls"), "move_right", "right")
+                .get_from_or(Some("controls"), "move_right", "right, d")
                 .to_string()
                 .split(',')
+                .map(str::trim)
                 .flat_map(|key| key_map(key, Action::MoveRight)));
 
             action_map.extend(CONFIG
-                .get_from_or(Some("controls"), "move_left", "left")
+                .get_from_or(Some("controls"), "move_left", "left, a")
                 .to_string()
                 .split(',')
+                .map(str::trim)
                 .flat_map(|key| key_map(key, Action::MoveLeft)));
 
             action_map.extend(CONFIG
-                .get_from_or(Some("controls"), "rotate_right", "up")
+                .get_from_or(Some("controls"), "rotate_right", "up, w")
                 .to_string()
                 .split(',')
+                .map(str::trim)
                 .flat_map(|key| key_map(key, Action::RotateRight)));
 
             action_map.extend(CONFIG
                 .get_from_or(Some("controls"), "rotate_left", "z")
                 .to_string()
                 .split(',')
+                .map(str::trim)
                 .flat_map(|key| key_map(key, Action::RotateLeft)));
 
             action_map.extend(CONFIG
-                .get_from_or(Some("controls"), "soft_drop", "up")
+                .get_from_or(Some("controls"), "soft_drop", "down, s")
                 .to_string()
                 .split(',')
+                .map(str::trim)
                 .flat_map(|key| key_map(key, Action::SoftDrop)));
 
             action_map.extend(CONFIG
                 .get_from_or(Some("controls"), "hard_drop", "space")
                 .to_string()
                 .split(',')
+                .map(str::trim)
                 .flat_map(|key| key_map(key, Action::HardDrop)));
 
             action_map.extend(CONFIG
                 .get_from_or(Some("controls"), "hold", "c")
                 .to_string()
                 .split(',')
+                .map(str::trim)
                 .flat_map(|key| key_map(key, Action::Hold)));
 
             action_map.extend(CONFIG
-                .get_from_or(Some("controls"), "quit", "escape")
+                .get_from_or(Some("controls"), "quit", "escape, q")
                 .to_string()
                 .split(',')
+                .map(str::trim)
                 .flat_map(|key| key_map(key, Action::Quit)));
 
             action_map

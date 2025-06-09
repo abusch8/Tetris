@@ -18,7 +18,7 @@ pub enum Action {
 
 pub async fn handle_event(
     game: &mut Game,
-    conn: &mut Box<dyn ConnTrait>,
+    conn: &Box<dyn ConnTrait>,
     event: Event,
     display: &mut Display,
     lock_delay: &mut Pin<&mut Sleep>,

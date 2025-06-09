@@ -56,7 +56,7 @@ pub async fn run(level: u32, is_host: bool) -> Result<()> {
             Some(Ok(event)) = reader.next().fuse() => {
                 handle_event(
                     game,
-                    &mut conn,
+                    &conn,
                     event,
                     display,
                     &mut lock_delay,
@@ -100,10 +100,10 @@ pub async fn run(level: u32, is_host: bool) -> Result<()> {
                         let geometry_bytes: &[u8; 41] = payload[0..41].try_into().unwrap();
                         let geometry = Geometry::from_bytes(geometry_bytes);
                         game.players[PlayerKind::Remote].set_falling_geometry(geometry);
-                        game.players[PlayerKind::Remote].place(&mut line_clear_delay_remote, &mut conn).await?;
+                        game.players[PlayerKind::Remote].place(&mut line_clear_delay_remote, &conn).await?;
                     },
                     TcpPacketMode::Hold => {
-                        game.players[PlayerKind::Remote].hold(&mut conn).await?;
+                        game.players[PlayerKind::Remote].hold(&conn).await?;
                     },
                     _ => (),
                 }
