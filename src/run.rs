@@ -66,10 +66,15 @@ pub async fn run(level: u32, is_host: bool) -> Result<()> {
             _ = &mut lock_delay, if game.players[PlayerKind::Local].locking => {
                 game.players[PlayerKind::Local].place(&mut line_clear_delay_local, &mut conn).await?;
             },
-            _ = &mut line_clear_delay_local, if game.players[PlayerKind::Local].clearing.len() > 0 => {
+            _ = &mut line_clear_delay_local, if (
+                game.players[PlayerKind::Local].clearing.len() > 0
+            ) => {
                 game.players[PlayerKind::Local].line_clear();
             },
-            _ = &mut line_clear_delay_remote, if game.players[PlayerKind::Remote].clearing.len() > 0 => {
+            _ = &mut line_clear_delay_remote, if (
+                conn.is_multiplayer() &&
+                game.players[PlayerKind::Remote].clearing.len() > 0
+            ) => {
                 game.players[PlayerKind::Remote].line_clear();
             },
             _ = drop_interval.tick() => {

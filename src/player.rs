@@ -187,6 +187,23 @@ impl Player {
         self.locking = self.falling.hitting_bottom(&self.stack);
     }
 
+    fn handle_shift(&mut self, direction: ShiftDirection) {
+        match direction {
+            ShiftDirection::Left => {
+                if !self.falling.hitting_left(&self.stack) {
+                    self.falling.geometry.transform(-1, 0);
+                    self.update_ghost();
+                }
+            },
+            ShiftDirection::Right => {
+                if !self.falling.hitting_right(&self.stack) {
+                    self.falling.geometry.transform(1, 0);
+                    self.update_ghost();
+                }
+            },
+        }
+    }
+
     pub async fn shift(
         &mut self,
         direction: ShiftDirection,
@@ -199,39 +216,13 @@ impl Player {
                 if self.lock_reset_count == LOCK_RESET_LIMIT {
                     self.place(line_clear_delay, conn).await?;
                 }
-                match direction {
-                    ShiftDirection::Left => {
-                        if !self.falling.hitting_left(&self.stack) {
-                            self.falling.geometry.transform(-1, 0);
-                            self.update_ghost();
-                        }
-                    },
-                    ShiftDirection::Right => {
-                        if !self.falling.hitting_right(&self.stack) {
-                            self.falling.geometry.transform(1, 0);
-                            self.update_ghost();
-                        }
-                    },
-                }
+                self.handle_shift(direction);
                 self.lock_reset_count += 1;
                 self.reset_lock_timer(lock_delay);
                 conn.send_pos(&self).await?;
             },
             PlayerKind::Remote => {
-                match direction {
-                    ShiftDirection::Left => {
-                        if !self.falling.hitting_left(&self.stack) {
-                            self.falling.geometry.transform(-1, 0);
-                            self.update_ghost();
-                        }
-                    },
-                    ShiftDirection::Right => {
-                        if !self.falling.hitting_right(&self.stack) {
-                            self.falling.geometry.transform(1, 0);
-                            self.update_ghost();
-                        }
-                    },
-                }
+                self.handle_shift(direction);
             },
         }
         Ok(())
