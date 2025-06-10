@@ -5,7 +5,6 @@ use strum::IntoEnumIterator;
 
 use crate::{conn::{ConnTrait, TcpPacketMode}, player::{Player, PlayerKind}, tetromino::{Tetromino, TetrominoVariant}};
 
-
 #[derive(FromPrimitive, PartialEq)]
 pub enum ShiftDirection { Left, Right }
 
@@ -36,7 +35,7 @@ impl Game {
                 Player::new(PlayerKind::Local, start_level, &mut seeds[seed_idx ^ 1]),
             ],
         };
-        if conn.is_multiplayer() {
+        if is_multiplayer {
             game.players.push(
                 Player::new(PlayerKind::Remote, start_level, &mut seeds[seed_idx]),
             );

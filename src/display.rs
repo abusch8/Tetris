@@ -247,13 +247,19 @@ impl Display {
         Ok(self)
     }
 
-    pub fn render_debug_info(&mut self, debug_frame: u64) -> Result<&mut Self> {
+    pub fn render_debug_info(&mut self, debug_frame: u64, rtt: u128) -> Result<&mut Self> {
         self.stdout
             .queue(MoveTo(0, 0))?
             .queue(Print(CLEAR))?
             .queue(MoveTo(0, 0))?
             .queue(Print(format!("{} fps", debug_frame)))?;
-
+        if self.is_multiplayer {
+            self.stdout
+                .queue(MoveTo(0, 1))?
+                .queue(Print(CLEAR))?
+                .queue(MoveTo(0, 1))?
+                .queue(Print(format!("{} ms", rtt)))?;
+        }
         Ok(self)
     }
 }

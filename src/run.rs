@@ -1,4 +1,4 @@
-use std::io::Result;
+use std::{io::Result, time::{SystemTime, UNIX_EPOCH}};
 use crossterm::event::EventStream;
 use futures::{FutureExt, stream::StreamExt};
 use tokio::{pin, select, time::{interval, sleep, Duration, Interval}};
@@ -37,6 +37,9 @@ pub async fn run(is_multiplayer: bool, is_host: bool, start_level: u32) -> Resul
 
     let mut debug_frame_interval = interval(Duration::from_secs(1));
     let mut debug_frame = 0u64;
+
+    let mut heartbeat_interval = interval(Duration::from_secs(1));
+    let mut rtt = 0;
 
     let mut conn: Box<dyn ConnTrait> = if is_multiplayer {
         Box::new(Conn::establish_connection(is_host).await?)
@@ -87,8 +90,11 @@ pub async fn run(is_multiplayer: bool, is_host: bool, start_level: u32) -> Resul
                 debug_frame += *config::DISPLAY_FRAME_RATE as u64;
             },
             _ = debug_frame_interval.tick(), if *config::DISPLAY_FRAME_RATE => {
-                display.render_debug_info(debug_frame)?;
+                display.render_debug_info(debug_frame, rtt)?;
                 debug_frame = 0;
+            },
+            _ = heartbeat_interval.tick(), if is_multiplayer => {
+                conn.send_ping().await?;
             },
             Ok((mode, payload)) = conn.recv_udp() => {
                 match mode {
@@ -101,6 +107,15 @@ pub async fn run(is_multiplayer: bool, is_host: bool, start_level: u32) -> Resul
             },
             Ok((mode, payload)) = conn.recv_tcp() => {
                 match mode {
+                    TcpPacketMode::Ping => {
+                        conn.send_pong(&payload).await?;
+                    },
+                    TcpPacketMode::Pong => {
+                        let ts_bytes: [u8; 16] = payload[0..16].try_into().unwrap();
+                        let res_ts = u128::from_le_bytes(ts_bytes);
+                        let now_ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+                        rtt = now_ts - res_ts;
+                    },
                     TcpPacketMode::Place => {
                         let geometry_bytes: &[u8; 41] = payload[0..41].try_into().unwrap();
                         let geometry = Geometry::from_bytes(geometry_bytes);

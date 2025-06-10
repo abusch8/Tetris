@@ -1,4 +1,4 @@
-use std::{future::Future, io::{ErrorKind, Result}, net::SocketAddr, pin::Pin};
+use std::{future::Future, io::{ErrorKind, Result}, net::SocketAddr, pin::Pin, time::{self, SystemTime, UNIX_EPOCH}};
 use async_trait::async_trait;
 use futures::future::pending;
 use num_derive::{FromPrimitive, ToPrimitive};
@@ -14,6 +14,8 @@ pub enum UdpPacketMode {
 
 #[derive(FromPrimitive, ToPrimitive)]
 pub enum TcpPacketMode {
+    Ping,
+    Pong,
     Seeds,
     Place,
     Hold,
@@ -21,13 +23,14 @@ pub enum TcpPacketMode {
 
 #[async_trait]
 pub trait ConnTrait {
+    async fn send_ping(&self) -> Result<()>;
+    async fn send_pong(&self, ts_bytes: &[u8; 63]) -> Result<()>;
     async fn send_seeds(&self, p1_seed: u64, p2_seed: u64) -> Result<()>;
     async fn send_place(&self, player: &Player) -> Result<()>;
     async fn send_hold(&self) -> Result<()>;
     async fn send_pos(&self, player: &Player) -> Result<()>;
     fn recv_udp<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<(UdpPacketMode, [u8; 63])>> + Send + 'a>>;
     fn recv_tcp<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<(TcpPacketMode, [u8; 63])>> + Send + 'a>>;
-    fn is_multiplayer(&self) -> bool;
     fn is_host(&self) -> bool;
 }
 
@@ -96,6 +99,22 @@ impl Conn {
 
 #[async_trait]
 impl ConnTrait for Conn {
+    async fn send_ping(&self) -> Result<()> {
+        self.send_tcp(
+            TcpPacketMode::Ping,
+            &SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis().to_le_bytes(),
+        ).await?;
+        Ok(())
+    }
+
+    async fn send_pong(&self, ts_bytes: &[u8; 63]) -> Result<()> {
+        self.send_tcp(
+            TcpPacketMode::Pong,
+            ts_bytes,
+        ).await?;
+        Ok(())
+    }
+
     async fn send_seeds(&self, p1_seed: u64, p2_seed: u64) -> Result<()> {
         let mut buf = Vec::new();
         buf.extend_from_slice(&p1_seed.to_le_bytes());
@@ -165,10 +184,6 @@ impl ConnTrait for Conn {
         })
     }
 
-    fn is_multiplayer(&self) -> bool {
-        true
-    }
-
     fn is_host(&self) -> bool {
         self.is_host
     }
@@ -178,6 +193,14 @@ pub struct DummyConn;
 
 #[async_trait]
 impl ConnTrait for DummyConn {
+    async fn send_ping(&self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn send_pong(&self, _ts_bytes: &[u8; 63]) -> Result<()> {
+        Ok(())
+    }
+
     async fn send_seeds(&self, _p1_seed: u64, _p2_seed: u64) -> Result<()> {
         Ok(())
     }
@@ -200,10 +223,6 @@ impl ConnTrait for DummyConn {
 
     fn recv_tcp<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<(TcpPacketMode, [u8; 63])>> + Send + 'a>> {
         Box::pin(pending())
-    }
-
-    fn is_multiplayer(&self) -> bool {
-        false
     }
 
     fn is_host(&self) -> bool {
