@@ -26,10 +26,10 @@ pub struct Game {
 }
 
 impl Game {
-    pub async fn start(start_level: u32, conn: &mut Box<dyn ConnTrait>) -> Result<Self> {
+    pub async fn start(is_multiplayer: bool, start_level: u32, conn: &mut Box<dyn ConnTrait>) -> Result<Self> {
         let seed_idx = conn.is_host() as usize;
 
-        let mut seeds = Game::generate_seeds(conn).await?;
+        let mut seeds = Game::generate_seeds(is_multiplayer, conn).await?;
 
         let mut game = Game {
             players: vec![
@@ -48,8 +48,8 @@ impl Game {
         Ok(game)
     }
 
-    async fn generate_seeds(conn: &Box<dyn ConnTrait>) -> Result<Vec<StdRng>> {
-        if conn.is_multiplayer() {
+    async fn generate_seeds(is_multiplayer: bool, conn: &Box<dyn ConnTrait>) -> Result<Vec<StdRng>> {
+        if is_multiplayer {
             if conn.is_host() {
                 let p1_seed = thread_rng().gen::<u64>();
                 let p2_seed = thread_rng().gen::<u64>();

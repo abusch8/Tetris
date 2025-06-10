@@ -7,7 +7,7 @@ use crossterm::{
     terminal::{self, Clear, ClearType},
 };
 
-use crate::{config, game::Game, tetromino::{Tetromino, TetrominoVariant}};
+use crate::{game::Game, tetromino::{Tetromino, TetrominoVariant}};
 
 pub type Dimension = (i32, i32);
 
@@ -23,15 +23,16 @@ pub struct Display {
     pub board_y: (u16, u16),
     pub prev_next: Option<TetrominoVariant>,
     pub prev_hold: Option<TetrominoVariant>,
+    pub is_multiplayer: bool,
 }
 
-fn calc_board_x() -> Vec<(u16, u16)> {
+fn calc_board_x(is_multiplayer: bool) -> Vec<(u16, u16)> {
     let terminal_size = terminal::size().unwrap();
 
     let board_x_0 = terminal_size.0 / 2 - BOARD_DIMENSION.0 as u16 * 2 / 2;
     let board_x_1 = terminal_size.0 / 2 - BOARD_DIMENSION.0 as u16 + BOARD_DIMENSION.0 as u16 * 2 + 2;
 
-    if *config::ENABLE_MULTIPLAYER {
+    if is_multiplayer {
         vec![
             (board_x_0 - BOARD_MP_OFFSET, board_x_1 - BOARD_MP_OFFSET),
             (board_x_0 + BOARD_MP_OFFSET, board_x_1 + BOARD_MP_OFFSET),
@@ -44,12 +45,12 @@ fn calc_board_x() -> Vec<(u16, u16)> {
 }
 
 impl Display {
-    pub fn new() -> Result<Self> {
+    pub fn new(is_multiplayer: bool) -> Result<Self> {
         let stdout = stdout();
 
         let terminal_size = terminal::size().unwrap();
 
-        let board_x = calc_board_x();
+        let board_x = calc_board_x(is_multiplayer);
         let board_y = (
             0,
             BOARD_DIMENSION.1 as u16 + 2,
@@ -62,6 +63,7 @@ impl Display {
             board_y,
             prev_next: None,
             prev_hold: None,
+            is_multiplayer,
         })
     }
 
@@ -70,7 +72,7 @@ impl Display {
 
         self.terminal_size = terminal::size().unwrap();
 
-        self.board_x = calc_board_x();
+        self.board_x = calc_board_x(self.is_multiplayer);
 
         self.prev_hold = None;
         self.prev_next = None;

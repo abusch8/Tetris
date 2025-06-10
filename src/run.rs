@@ -16,10 +16,10 @@ fn calc_drop_interval(level: u32) -> Interval {
     })
 }
 
-pub async fn run(level: u32, is_host: bool) -> Result<()> {
+pub async fn run(is_multiplayer: bool, is_host: bool, start_level: u32) -> Result<()> {
     let mut reader = EventStream::new();
 
-    let display = &mut Display::new()?;
+    let display = &mut Display::new(is_multiplayer)?;
     display.draw()?;
 
     let frame_duration = Duration::from_nanos(if *config::MAX_FRAME_RATE > 0 {
@@ -38,13 +38,13 @@ pub async fn run(level: u32, is_host: bool) -> Result<()> {
     let mut debug_frame_interval = interval(Duration::from_secs(1));
     let mut debug_frame = 0u64;
 
-    let mut conn: Box<dyn ConnTrait> = if *config::ENABLE_MULTIPLAYER {
+    let mut conn: Box<dyn ConnTrait> = if is_multiplayer {
         Box::new(Conn::establish_connection(is_host).await?)
     } else {
         Box::new(DummyConn)
     };
 
-    let game = &mut Game::start(level, &mut conn).await?;
+    let game = &mut Game::start(is_multiplayer, start_level, &mut conn).await?;
 
     let mut render_interval = interval(frame_duration);
     let mut drop_interval = calc_drop_interval(game.players[PlayerKind::Local].level);
@@ -72,7 +72,7 @@ pub async fn run(level: u32, is_host: bool) -> Result<()> {
                 game.players[PlayerKind::Local].line_clear();
             },
             _ = &mut line_clear_delay_remote, if (
-                conn.is_multiplayer() &&
+                is_multiplayer &&
                 game.players[PlayerKind::Remote].clearing.len() > 0
             ) => {
                 game.players[PlayerKind::Remote].line_clear();

@@ -1,11 +1,16 @@
 use std::net::SocketAddr;
 use std::env;
 
+use clap::Parser;
 use ini::Ini;
 use home::home_dir;
 use lazy_static::lazy_static;
 
+use crate::Cli;
+
 lazy_static! {
+
+    static ref CLI: Cli = Cli::parse();
 
     static ref CONFIG_PATH: String = env::var("TETRIS_CONFIG_PATH").unwrap_or(format!("{}/.config/tetris.ini", home_dir().unwrap().to_str().unwrap()));
     static ref CONFIG: Ini = Ini::load_from_file(&*CONFIG_PATH).unwrap_or(Ini::new());
@@ -30,15 +35,19 @@ lazy_static! {
         .parse()
         .unwrap_or_else(|_| panic!("Invalid enable_multiplayer experiemental config value"));
 
-    pub static ref BIND_ADDR: SocketAddr = CONFIG
-        .get_from_or(Some("experimental"), "bind_addr", "127.0.0.1:8080")
-        .parse::<SocketAddr>()
-        .unwrap_or_else(|_| panic!("Invalid bind_addr experiemental config value"));
+    pub static ref BIND_ADDR: SocketAddr = match &CLI.bind_addr {
+        Some(addr) => addr,
+        None => CONFIG.get_from_or(Some("experimental"), "bind_addr", "0.0.0.0:12000"),
+    }
+    .parse::<SocketAddr>()
+    .unwrap_or_else(|_| panic!("Invalid bind_addr format"));
 
-    pub static ref CONN_ADDR: SocketAddr = CONFIG
-        .get_from_or(Some("experimental"), "conn_addr", "127.0.0.1:8081")
-        .parse::<SocketAddr>()
-        .unwrap_or_else(|_| panic!("Invalid conn_addr experiemental config value"));
+    pub static ref CONN_ADDR: SocketAddr = match &CLI.conn_addr {
+        Some(addr) => addr,
+        None => CONFIG.get_from_or(Some("experimental"), "conn_addr", "0.0.0.0:12000"),
+    }
+    .parse::<SocketAddr>()
+    .unwrap_or_else(|_| panic!("Invalid conn_addr format"));
 }
 
 pub mod controls {
