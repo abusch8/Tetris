@@ -17,13 +17,12 @@ pub enum ConnKind {
 
 impl ConnKind {
     pub fn from_args(is_host: bool, is_client: bool) -> Self {
-        if is_client {
-            return ConnKind::Client
+        match (is_host, is_client) {
+            (true,  true ) |
+            (true,  false) => ConnKind::Host,
+            (false, true ) => ConnKind::Client,
+            (false, false) => ConnKind::Empty,
         }
-        if is_host {
-            return ConnKind::Host
-        }
-        ConnKind::Empty
     }
 
     pub fn is_multiplayer(&self) -> bool {
@@ -203,8 +202,8 @@ impl ConnTrait for Conn {
         Box::pin(async move {
             let mut buf = [0u8; 64];
             self.udp_socket.recv(&mut buf).await?;
-            let mode_bytes: &[u8; 1] = buf[0..1].try_into().unwrap();
-            let mode = UdpPacketMode::from_u8(u8::from_le_bytes(*mode_bytes)).unwrap();
+            let mode_bytes: [u8; 1] = buf[0..1].try_into().unwrap();
+            let mode = UdpPacketMode::from_u8(u8::from_le_bytes(mode_bytes)).unwrap();
             let payload: [u8; 63] = buf[1..64].try_into().unwrap();
             Ok((mode, payload))
         })
@@ -217,8 +216,8 @@ impl ConnTrait for Conn {
                 self.tcp_stream.readable().await?;
                 match self.tcp_stream.try_read(&mut buf) {
                     Ok(_) => {
-                        let mode_bytes: &[u8; 1] = buf[0..1].try_into().unwrap();
-                        let mode = TcpPacketMode::from_u8(u8::from_le_bytes(*mode_bytes)).unwrap();
+                        let mode_bytes: [u8; 1] = buf[0..1].try_into().unwrap();
+                        let mode = TcpPacketMode::from_u8(u8::from_le_bytes(mode_bytes)).unwrap();
                         let payload: [u8; 63] = buf[1..64].try_into().unwrap();
                         return Ok((mode, payload));
                     },

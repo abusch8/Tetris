@@ -95,7 +95,7 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
             Ok((mode, payload)) = conn.recv_udp() => {
                 match mode {
                     UdpPacketMode::Pos => {
-                        let geometry_bytes: &[u8; 41] = payload[0..41].try_into().unwrap();
+                        let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
                         let geometry = Geometry::from_bytes(geometry_bytes);
                         game.players[PlayerKind::Remote].set_falling_geometry(geometry);
                     },
@@ -113,7 +113,7 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
                         rtt = now_ts - res_ts;
                     },
                     TcpPacketMode::Place => {
-                        let geometry_bytes: &[u8; 41] = payload[0..41].try_into().unwrap();
+                        let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
                         let geometry = Geometry::from_bytes(geometry_bytes);
                         game.players[PlayerKind::Remote].set_falling_geometry(geometry);
                         game.players[PlayerKind::Remote].place(&mut line_clear_delay_remote, &conn).await?;

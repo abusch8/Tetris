@@ -67,24 +67,24 @@ impl Geometry {
         buf
     }
 
-    pub fn from_bytes(buf: &[u8; 41]) -> Geometry {
-        let direction_bytes: &[u8; 1] = buf[0..1].try_into().unwrap();
-        let direction = CardinalDirection::from_u8(u8::from_le_bytes(*direction_bytes)).unwrap();
+    pub fn from_bytes(buf: [u8; 41]) -> Geometry {
+        let direction_bytes: [u8; 1] = buf[0..1].try_into().unwrap();
+        let direction = CardinalDirection::from_u8(u8::from_le_bytes(direction_bytes)).unwrap();
 
-        let center_x_bytes: &[u8; 4] = buf[1..5].try_into().unwrap();
-        let center_y_bytes: &[u8; 4] = buf[5..9].try_into().unwrap();
+        let center_x_bytes: [u8; 4] = buf[1..5].try_into().unwrap();
+        let center_y_bytes: [u8; 4] = buf[5..9].try_into().unwrap();
         let center = (
-            i32::from_le_bytes(*center_x_bytes),
-            i32::from_le_bytes(*center_y_bytes),
+            i32::from_le_bytes(center_x_bytes),
+            i32::from_le_bytes(center_y_bytes),
         );
 
         let mut shape = Vec::new();
         for i in (9..buf.len()).step_by(8) {
-            let shape_x_bytes: &[u8; 4] = buf[i..i + 4].try_into().unwrap();
-            let shape_y_bytes: &[u8; 4] = buf[i + 4..i + 8].try_into().unwrap();
+            let shape_x_bytes: [u8; 4] = buf[i..i + 4].try_into().unwrap();
+            let shape_y_bytes: [u8; 4] = buf[i + 4..i + 8].try_into().unwrap();
             shape.push((
-                i32::from_le_bytes(*shape_x_bytes),
-                i32::from_le_bytes(*shape_y_bytes),
+                i32::from_le_bytes(shape_x_bytes),
+                i32::from_le_bytes(shape_y_bytes),
             ));
         }
 

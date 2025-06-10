@@ -63,10 +63,10 @@ impl Game {
                     let (mode, payload) = conn.recv_tcp().await?;
                     match mode {
                         TcpPacketMode::Seeds => {
-                            let p1_seed_bytes: &[u8; 8] = payload[0..8].try_into().unwrap();
-                            let p2_seed_bytes: &[u8; 8] = payload[8..16].try_into().unwrap();
-                            let p1_seed = u64::from_le_bytes(*p1_seed_bytes);
-                            let p2_seed = u64::from_le_bytes(*p2_seed_bytes);
+                            let p1_seed_bytes: [u8; 8] = payload[0..8].try_into().unwrap();
+                            let p2_seed_bytes: [u8; 8] = payload[8..16].try_into().unwrap();
+                            let p1_seed = u64::from_le_bytes(p1_seed_bytes);
+                            let p2_seed = u64::from_le_bytes(p2_seed_bytes);
                             return Ok(vec![
                                 StdRng::seed_from_u64(p1_seed),
                                 StdRng::seed_from_u64(p2_seed),
