@@ -3,7 +3,7 @@ use crossterm::event::EventStream;
 use futures::{FutureExt, stream::StreamExt};
 use tokio::{pin, select, time::{interval, sleep, Duration, Interval}};
 
-use crate::{config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_event, game::Game, player::PlayerKind, tetromino::Geometry};
+use crate::{config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, player::PlayerKind, tetromino::Geometry};
 
 fn calc_drop_interval(level: u32) -> Interval {
     let drop_rate = (0.8 - (level - 1) as f32 * 0.007).powf((level - 1) as f32);
@@ -53,7 +53,7 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
     Ok(loop {
         select! {
             Some(Ok(event)) = reader.next().fuse() => {
-                handle_event(
+                handle_game_event(
                     game,
                     &conn,
                     event,

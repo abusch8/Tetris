@@ -1,8 +1,8 @@
-use std::{io::Result, pin::Pin};
+use std::{io::Result, pin::Pin, process::exit};
 use crossterm::event::{Event, KeyEvent, KeyEventKind};
 use tokio::time::Sleep;
 
-use crate::{config, conn::ConnTrait, display::Display, game::{Game, RotationDirection, ShiftDirection}, player::PlayerKind};
+use crate::{config, conn::ConnTrait, display::Display, exit_tui_mode, game::{Game, RotationDirection, ShiftDirection}, player::PlayerKind};
 
 #[derive(Clone)]
 pub enum Action {
@@ -16,7 +16,7 @@ pub enum Action {
     Quit,
 }
 
-pub async fn handle_event(
+pub async fn handle_game_event(
     game: &mut Game,
     conn: &Box<dyn ConnTrait>,
     event: Event,
@@ -82,6 +82,25 @@ pub async fn handle_event(
                 }
             }
         },
+        Event::Resize(_, _) => display.draw()?,
+        _ => (),
+    })
+}
+
+pub fn handle_conn_event(event: Event, display: &mut Display) -> Result<()> {
+    Ok(match event {
+        Event::Key(KeyEvent { kind, code, .. }) => {
+            if kind == KeyEventKind::Press {
+                match config::controls::ACTION_MAP.get(&code) {
+                    Some(Action::Quit) => {
+                        exit_tui_mode()?;
+                        exit(0);
+                    },
+                    Some(_) => (),
+                    None => (),
+                }
+            }
+        }
         Event::Resize(_, _) => display.draw()?,
         _ => (),
     })

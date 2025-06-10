@@ -1,12 +1,12 @@
-use std::{future::Future, io::{ErrorKind, Result}, net::SocketAddr, pin::Pin, process::exit, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::{future::Future, io::{ErrorKind, Result}, net::SocketAddr, pin::Pin, time::{Duration, SystemTime, UNIX_EPOCH}};
 use async_trait::async_trait;
-use crossterm::event::{Event, EventStream, KeyEvent, KeyEventKind};
+use crossterm::event::EventStream;
 use futures::{future::pending, FutureExt, StreamExt};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use tokio::{net::{TcpListener, TcpStream, UdpSocket}, select, time::interval};
 
-use crate::{config, display::Display, event::Action, exit_tui_mode, player::Player};
+use crate::{config, display::Display, event::handle_conn_event, player::Player};
 
 #[derive(Clone, Copy)]
 pub enum ConnKind {
@@ -62,25 +62,6 @@ pub struct Conn {
     pub udp_socket: UdpSocket,
 }
 
-fn handle_event(event: Event, display: &mut Display) -> Result<()> {
-    Ok(match event {
-        Event::Key(KeyEvent { kind, code, .. }) => {
-            if kind == KeyEventKind::Press {
-                match config::controls::ACTION_MAP.get(&code) {
-                    Some(Action::Quit) => {
-                        exit_tui_mode()?;
-                        exit(0);
-                    },
-                    Some(_) => (),
-                    None => (),
-                }
-            }
-        }
-        Event::Resize(_, _) => display.draw()?,
-        _ => (),
-    })
-}
-
 impl Conn {
     async fn tcp_listen(display: &mut Display) -> Result<(TcpStream, SocketAddr)> {
         let mut reader = EventStream::new();
@@ -91,7 +72,7 @@ impl Conn {
                     return Ok(socket);
                 },
                 Some(Ok(event)) = reader.next().fuse() => {
-                    handle_event(event, display)?;
+                    handle_conn_event(event, display)?;
                 },
             }
         }
@@ -108,7 +89,7 @@ impl Conn {
                     }
                 },
                 Some(Ok(event)) = reader.next().fuse() => {
-                    handle_event(event, display)?;
+                    handle_conn_event(event, display)?;
                 },
             }
         }
