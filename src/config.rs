@@ -30,11 +30,6 @@ lazy_static! {
         .parse()
         .unwrap_or_else(|_| panic!("Invalid use_xterm_256_colors display config value"));
 
-    pub static ref ENABLE_MULTIPLAYER: bool = CONFIG
-        .get_from_or(Some("experimental"), "enable_multiplayer", "false")
-        .parse()
-        .unwrap_or_else(|_| panic!("Invalid enable_multiplayer experiemental config value"));
-
     pub static ref BIND_ADDR: SocketAddr = match &CLI.bind_addr {
         Some(addr) => addr,
         None => CONFIG.get_from_or(Some("experimental"), "bind_addr", "0.0.0.0:12000"),
