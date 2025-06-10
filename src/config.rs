@@ -60,20 +60,31 @@ pub mod controls {
 
     fn key_map(key: &str, action: Action) -> HashMap<KeyCode, Action> {
         let mut action_map = HashMap::new();
-        if key.len() == 1 && key.is_ascii() {
-            let char = key.chars().next().unwrap();
-            action_map.insert(KeyCode::Char(char.to_ascii_uppercase()), action.clone());
-            action_map.insert(KeyCode::Char(char.to_ascii_lowercase()), action);
-        } else {
-            match key {
-                "up"        => action_map.insert(KeyCode::Up, action),
-                "down"      => action_map.insert(KeyCode::Down, action),
-                "left"      => action_map.insert(KeyCode::Left, action),
-                "right"     => action_map.insert(KeyCode::Right, action),
-                "space"     => action_map.insert(KeyCode::Char(' '), action),
-                "escape"    => action_map.insert(KeyCode::Esc, action),
-                _           => panic!("Invalid controls config key value: {}", key),
-            };
+        match key {
+            key if key.len() == 1 && key.is_ascii() => {
+                let char = key.chars().next().unwrap();
+                action_map.insert(KeyCode::Char(char.to_ascii_uppercase()), action.clone());
+                action_map.insert(KeyCode::Char(char.to_ascii_lowercase()), action);
+            }
+            "up" => {
+                action_map.insert(KeyCode::Up, action);
+            },
+            "down" => {
+                action_map.insert(KeyCode::Down, action);
+            },
+            "left" => {
+                action_map.insert(KeyCode::Left, action);
+            },
+            "right" => {
+                action_map.insert(KeyCode::Right, action);
+            },
+            "space" => {
+                action_map.insert(KeyCode::Char(' '), action);
+            },
+            "escape" => {
+                action_map.insert(KeyCode::Esc, action);
+            },
+            _ => panic!("Invalid controls config key value: {}", key),
         }
         action_map
     }
