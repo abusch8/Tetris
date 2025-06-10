@@ -32,14 +32,14 @@ lazy_static! {
 
     pub static ref BIND_ADDR: SocketAddr = match &CLI.bind_addr {
         Some(addr) => addr,
-        None => CONFIG.get_from_or(Some("experimental"), "bind_addr", "0.0.0.0:12000"),
+        None => CONFIG.get_from_or(Some("multiplayer"), "bind_addr", "0.0.0.0:12000"),
     }
     .parse::<SocketAddr>()
     .unwrap_or_else(|_| panic!("Invalid bind_addr format"));
 
     pub static ref CONN_ADDR: SocketAddr = match &CLI.conn_addr {
         Some(addr) => addr,
-        None => CONFIG.get_from_or(Some("experimental"), "conn_addr", "0.0.0.0:12000"),
+        None => CONFIG.get_from_or(Some("multiplayer"), "conn_addr", "0.0.0.0:12000"),
     }
     .parse::<SocketAddr>()
     .unwrap_or_else(|_| panic!("Invalid conn_addr format"));
