@@ -32,6 +32,8 @@ pub struct Cli {
     conn_addr: Option<String>,
     #[arg(long, default_value_t = 1)]
     start_level: u32,
+    #[arg(long)]
+    debug: bool,
 }
 
 pub fn enter_tui_mode() -> Result<()> {

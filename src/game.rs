@@ -3,7 +3,7 @@ use rand::{rngs::StdRng, seq::SliceRandom, thread_rng, Rng, SeedableRng};
 use num_derive::FromPrimitive;
 use strum::IntoEnumIterator;
 
-use crate::{conn::{ConnKind, ConnTrait, TcpPacketMode}, player::{Player, PlayerKind}, tetromino::{Tetromino, TetrominoVariant}};
+use crate::{conn::{ConnKind, ConnTrait, TcpPacketMode}, debug_log, player::{Player, PlayerKind}, tetromino::{Tetromino, TetrominoVariant}};
 
 #[derive(FromPrimitive, PartialEq)]
 pub enum ShiftDirection { Left, Right }

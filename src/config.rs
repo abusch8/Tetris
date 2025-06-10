@@ -6,11 +6,11 @@ use ini::Ini;
 use home::home_dir;
 use lazy_static::lazy_static;
 
+// use crate::debug::Debugger;
 use crate::Cli;
 
 lazy_static! {
-
-    static ref CLI: Cli = Cli::parse();
+    pub static ref CLI: Cli = Cli::parse();
 
     static ref CONFIG_PATH: String = env::var("TETRIS_CONFIG_PATH").unwrap_or(format!("{}/.config/tetris.ini", home_dir().unwrap().to_str().unwrap()));
     static ref CONFIG: Ini = Ini::load_from_file(&*CONFIG_PATH).unwrap_or(Ini::new());

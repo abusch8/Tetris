@@ -1,57 +1,53 @@
 #![allow(unused)]
 
-use std::{fs::remove_file, path::Path, process::{Child, Command}, thread::sleep, time::Duration};
+use std::{fs::{remove_file, File, OpenOptions}, io::Write, path::Path, process::{Child, Command}, sync::{Mutex, RwLock}, thread::sleep, time::Duration};
+use clap::Parser;
 use crossterm::terminal::{Clear, ClearType};
+use lazy_static::lazy_static;
+use chrono::Utc;
 
 use crate::config;
 
-pub const DEBUG_PATH: &str = "/tmp/tetris_debug_pipe";
+lazy_static! {
+    pub static ref DEBUGGER: RwLock<Option<Debugger>> = RwLock::new(
+        if config::CLI.debug {
+            Some(Debugger::new())
+        } else {
+            None
+        }
+    );
+}
+
+pub struct Debugger {
+    pub log: Vec<String>,
+    pub log_file: File,
+}
+
+impl Debugger {
+    pub fn new() -> Self {
+        Debugger {
+            log: Vec::new(),
+            log_file: OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(format!("/home/alex/debug_{}.log", Utc::now().format("%Y-%m-%d")))
+                .unwrap(),
+        }
+    }
+
+    pub fn log(&mut self, msg: &str) {
+        let msg = format!("{} {}", Utc::now().format("%H:%M:%S"), msg);
+        self.log_file.write_all(format!("{}\n", msg).as_bytes());
+        self.log.push(msg);
+    }
+}
 
 #[macro_export]
-macro_rules! debug_println {
+macro_rules! debug_log {
     ($($args:tt)*) => {{
-        use std::{io::Write, fs::OpenOptions};
-
-        let mut pipe = OpenOptions::new()
-            .write(true)
-            .open(crate::debug::DEBUG_PATH)
-            .unwrap_or_else(|_| panic!("failed to open {}", crate::debug::DEBUG_PATH));
-
-        writeln!(pipe, "{}", format!($($args)*)).unwrap();
-        pipe.flush().unwrap();
+        if let Some(debugger) = &mut *crate::debug::DEBUGGER.write().unwrap() {
+            debugger.log(&format!($($args)*))
+        }
     }};
-}
-
-pub struct DebugWindow {
-    child: Option<Child>,
-}
-
-impl DebugWindow {
-    pub fn new() -> Self {
-        DebugWindow {
-            child: if !Path::new(DEBUG_PATH).exists() {
-                Command::new("mkfifo").arg(DEBUG_PATH).output().unwrap();
-                Some(Command::new("kitty")
-                    .arg("--title")
-                    .arg("TETRIS - Debug")
-                    .arg("bash")
-                    .arg("-c")
-                    .arg(format!("tail -f {}", DEBUG_PATH))
-                    .spawn()
-                    .unwrap())
-            } else {
-                None
-            }
-        }
-    }
-
-    pub fn close(mut self) {
-        remove_file(DEBUG_PATH).ok();
-
-        if let Some(mut child) = self.child {
-            child.kill().unwrap();
-            child.wait().unwrap();
-        }
-    }
 }
 

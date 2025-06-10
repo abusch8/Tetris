@@ -1,5 +1,4 @@
-use std::io::{Result, Stdout};
-use::std::io::{stdout, Write};
+use std::{cmp::min, io::{Result, Stdout, Write, stdout}};
 use crossterm::{
     execute, QueueableCommand,
     cursor::MoveTo,
@@ -7,7 +6,7 @@ use crossterm::{
     terminal::{self, Clear, ClearType},
 };
 
-use crate::{game::Game, tetromino::{Tetromino, TetrominoVariant}};
+use crate::{debug, game::Game, tetromino::{Tetromino, TetrominoVariant}};
 
 pub type Dimension = (i32, i32);
 
@@ -120,7 +119,8 @@ impl Display {
         self.render_board(game)?
             .render_hold(game)?
             .render_next(game)?
-            .render_stats(game)?;
+            .render_stats(game)?
+            .render_debug_log()?;
 
         Ok(self.stdout.flush()?)
     }
@@ -256,9 +256,20 @@ impl Display {
         if self.is_multiplayer {
             self.stdout
                 .queue(MoveTo(0, 1))?
-                .queue(Print(CLEAR))?
+                .queue(Print(format!("{}{}", CLEAR, CLEAR)))?
                 .queue(MoveTo(0, 1))?
                 .queue(Print(format!("{} ms", rtt)))?;
+        }
+        Ok(self)
+    }
+
+    fn render_debug_log(&mut self) -> Result<&mut Self> {
+        if let Some(debugger) = &*debug::DEBUGGER.read().unwrap() {
+            for i in 0..min(6, debugger.log.len()) {
+                self.stdout
+                    .queue(MoveTo(0, self.terminal_size.1 - i as u16))?
+                    .queue(Print(&debugger.log[debugger.log.len() - i - 1]))?;
+            }
         }
         Ok(self)
     }
