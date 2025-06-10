@@ -104,7 +104,7 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
             Ok((mode, payload)) = conn.recv_tcp() => {
                 match mode {
                     TcpPacketMode::Ping => {
-                        conn.send_pong(&payload).await?;
+                        conn.send_pong(payload).await?;
                     },
                     TcpPacketMode::Pong => {
                         let ts_bytes: [u8; 16] = payload[0..16].try_into().unwrap();

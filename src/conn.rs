@@ -8,6 +8,20 @@ use tokio::{net::{TcpListener, TcpStream, UdpSocket}, select, time::interval};
 
 use crate::{config, display::Display, event::handle_conn_event, player::Player};
 
+#[derive(FromPrimitive, ToPrimitive)]
+pub enum UdpPacketMode {
+    Pos,
+}
+
+#[derive(FromPrimitive, ToPrimitive)]
+pub enum TcpPacketMode {
+    Ping,
+    Pong,
+    Seeds,
+    Place,
+    Hold,
+}
+
 #[derive(Clone, Copy)]
 pub enum ConnKind {
     Host,
@@ -34,24 +48,10 @@ impl ConnKind {
     }
 }
 
-#[derive(FromPrimitive, ToPrimitive)]
-pub enum UdpPacketMode {
-    Pos,
-}
-
-#[derive(FromPrimitive, ToPrimitive)]
-pub enum TcpPacketMode {
-    Ping,
-    Pong,
-    Seeds,
-    Place,
-    Hold,
-}
-
 #[async_trait]
 pub trait ConnTrait {
     async fn send_ping(&self) -> Result<()>;
-    async fn send_pong(&self, ts_bytes: &[u8; 63]) -> Result<()>;
+    async fn send_pong(&self, ts_bytes: [u8; 63]) -> Result<()>;
     async fn send_seeds(&self, p1_seed: u64, p2_seed: u64) -> Result<()>;
     async fn send_place(&self, player: &Player) -> Result<()>;
     async fn send_hold(&self) -> Result<()>;
@@ -98,21 +98,31 @@ impl Conn {
         }
     }
 
+    async fn udp_connect(bind_addr: SocketAddr, peer_addr: SocketAddr) -> Result<UdpSocket> {
+        let udp_socket = UdpSocket::bind(bind_addr).await?;
+        udp_socket.connect(peer_addr).await?;
+        Ok(udp_socket)
+    }
+
     pub async fn establish_connection(conn_kind: ConnKind, display: &mut Display) -> Result<Box<dyn ConnTrait>> {
         match conn_kind {
             ConnKind::Host => {
                 let (tcp_stream, peer_addr) = Conn::tcp_listen(display).await?;
 
-                let udp_socket = UdpSocket::bind(*config::BIND_ADDR).await?;
-                udp_socket.connect(peer_addr).await?;
+                let udp_socket = Conn::udp_connect(
+                    *config::BIND_ADDR,
+                    peer_addr,
+                ).await?;
 
                 Ok(Box::new(Conn { udp_socket, tcp_stream }))
             },
             ConnKind::Client => {
                 let tcp_stream = Conn::tcp_connect(display).await?;
 
-                let udp_socket = UdpSocket::bind(tcp_stream.local_addr().unwrap()).await?;
-                udp_socket.connect(*config::CONN_ADDR).await?;
+                let udp_socket = Conn::udp_connect(
+                    tcp_stream.local_addr()?,
+                    *config::CONN_ADDR,
+                ).await?;
 
                 Ok(Box::new(Conn { udp_socket, tcp_stream }))
             },
@@ -159,10 +169,10 @@ impl ConnTrait for Conn {
         Ok(())
     }
 
-    async fn send_pong(&self, ts_bytes: &[u8; 63]) -> Result<()> {
+    async fn send_pong(&self, ts_bytes: [u8; 63]) -> Result<()> {
         self.send_tcp(
             TcpPacketMode::Pong,
-            ts_bytes,
+            &ts_bytes,
         ).await?;
         Ok(())
     }
@@ -245,7 +255,7 @@ impl ConnTrait for DummyConn {
         Ok(())
     }
 
-    async fn send_pong(&self, _ts_bytes: &[u8; 63]) -> Result<()> {
+    async fn send_pong(&self, _ts_bytes: [u8; 63]) -> Result<()> {
         Ok(())
     }
 
