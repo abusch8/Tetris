@@ -26,7 +26,7 @@ pub struct Game {
 
 impl Game {
     pub async fn start(conn_kind: ConnKind, start_level: u32, conn: &mut Box<dyn ConnTrait>) -> Result<Self> {
-        let seed_idx = matches!(conn_kind, ConnKind::Host) as usize;
+        let seed_idx = conn_kind.is_host() as usize;
 
         let mut seeds = Game::generate_seeds(conn_kind, conn).await?;
 

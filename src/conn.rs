@@ -28,6 +28,10 @@ impl ConnKind {
     pub fn is_multiplayer(&self) -> bool {
         return !matches!(self, ConnKind::Empty);
     }
+
+    pub fn is_host(&self) -> bool {
+        return matches!(self, ConnKind::Host);
+    }
 }
 
 #[derive(FromPrimitive, ToPrimitive)]
