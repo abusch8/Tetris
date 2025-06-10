@@ -3,7 +3,7 @@ use crossterm::event::EventStream;
 use futures::{FutureExt, stream::StreamExt};
 use tokio::{pin, select, time::{interval, sleep, Duration, Interval}};
 
-use crate::{config, conn::{Conn, ConnTrait, DummyConn, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_event, game::Game, player::PlayerKind, tetromino::Geometry};
+use crate::{config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_event, game::Game, player::PlayerKind, tetromino::Geometry};
 
 fn calc_drop_interval(level: u32) -> Interval {
     let drop_rate = (0.8 - (level - 1) as f32 * 0.007).powf((level - 1) as f32);
@@ -16,10 +16,10 @@ fn calc_drop_interval(level: u32) -> Interval {
     })
 }
 
-pub async fn run(is_multiplayer: bool, is_host: bool, start_level: u32) -> Result<()> {
+pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
     let mut reader = EventStream::new();
 
-    let display = &mut Display::new(is_multiplayer)?;
+    let display = &mut Display::new(conn_kind.is_multiplayer())?;
     display.draw()?;
 
     let frame_duration = Duration::from_nanos(if *config::MAX_FRAME_RATE > 0 {
@@ -41,13 +41,9 @@ pub async fn run(is_multiplayer: bool, is_host: bool, start_level: u32) -> Resul
     let mut heartbeat_interval = interval(Duration::from_secs(1));
     let mut rtt = 0;
 
-    let mut conn: Box<dyn ConnTrait> = if is_multiplayer {
-        Box::new(Conn::establish_connection(is_host).await?)
-    } else {
-        Box::new(DummyConn)
-    };
+    let mut conn = Conn::establish_connection(conn_kind, display).await?;
 
-    let game = &mut Game::start(is_multiplayer, start_level, &mut conn).await?;
+    let game = &mut Game::start(conn_kind, start_level, &mut conn).await?;
 
     let mut render_interval = interval(frame_duration);
     let mut drop_interval = calc_drop_interval(game.players[PlayerKind::Local].level);
@@ -75,7 +71,7 @@ pub async fn run(is_multiplayer: bool, is_host: bool, start_level: u32) -> Resul
                 game.players[PlayerKind::Local].line_clear();
             },
             _ = &mut line_clear_delay_remote, if (
-                is_multiplayer &&
+                conn_kind.is_multiplayer() &&
                 game.players[PlayerKind::Remote].clearing.len() > 0
             ) => {
                 game.players[PlayerKind::Remote].line_clear();
@@ -93,7 +89,7 @@ pub async fn run(is_multiplayer: bool, is_host: bool, start_level: u32) -> Resul
                 display.render_debug_info(debug_frame, rtt)?;
                 debug_frame = 0;
             },
-            _ = heartbeat_interval.tick(), if is_multiplayer => {
+            _ = heartbeat_interval.tick(), if conn_kind.is_multiplayer() => {
                 conn.send_ping().await?;
             },
             Ok((mode, payload)) = conn.recv_udp() => {

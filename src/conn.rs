@@ -1,11 +1,35 @@
-use std::{future::Future, io::{ErrorKind, Result}, net::SocketAddr, pin::Pin, time::{self, SystemTime, UNIX_EPOCH}};
+use std::{future::Future, io::{ErrorKind, Result}, net::SocketAddr, pin::Pin, process::exit, time::{Duration, SystemTime, UNIX_EPOCH}};
 use async_trait::async_trait;
-use futures::future::pending;
+use crossterm::event::{Event, EventStream, KeyEvent, KeyEventKind};
+use futures::{future::pending, FutureExt, StreamExt};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
-use tokio::{net::{TcpListener, TcpStream, UdpSocket}};
+use tokio::{net::{TcpListener, TcpStream, UdpSocket}, select, time::interval};
 
-use crate::{config, player::Player};
+use crate::{config, display::Display, event::Action, exit_tui_mode, player::Player};
+
+#[derive(Clone, Copy)]
+pub enum ConnKind {
+    Host,
+    Client,
+    Empty,
+}
+
+impl ConnKind {
+    pub fn from_args(is_host: bool, is_client: bool) -> Self {
+        if is_client {
+            return ConnKind::Client
+        }
+        if is_host {
+            return ConnKind::Host
+        }
+        ConnKind::Empty
+    }
+
+    pub fn is_multiplayer(&self) -> bool {
+        return !matches!(self, ConnKind::Empty);
+    }
+}
 
 #[derive(FromPrimitive, ToPrimitive)]
 pub enum UdpPacketMode {
@@ -31,40 +55,84 @@ pub trait ConnTrait {
     async fn send_pos(&self, player: &Player) -> Result<()>;
     fn recv_udp<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<(UdpPacketMode, [u8; 63])>> + Send + 'a>>;
     fn recv_tcp<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<(TcpPacketMode, [u8; 63])>> + Send + 'a>>;
-    fn is_host(&self) -> bool;
 }
 
 pub struct Conn {
     pub tcp_stream: TcpStream,
     pub udp_socket: UdpSocket,
-    pub is_host: bool,
+}
+
+fn handle_event(event: Event, display: &mut Display) -> Result<()> {
+    Ok(match event {
+        Event::Key(KeyEvent { kind, code, .. }) => {
+            if kind == KeyEventKind::Press {
+                match config::controls::ACTION_MAP.get(&code) {
+                    Some(Action::Quit) => {
+                        exit_tui_mode()?;
+                        exit(0);
+                    },
+                    Some(_) => (),
+                    None => (),
+                }
+            }
+        }
+        Event::Resize(_, _) => display.draw()?,
+        _ => (),
+    })
 }
 
 impl Conn {
-    async fn tcp_listen(tcp_listener: &TcpListener) -> (TcpStream, SocketAddr) {
+    async fn tcp_listen(display: &mut Display) -> Result<(TcpStream, SocketAddr)> {
+        let mut reader = EventStream::new();
+        let tcp_listener = TcpListener::bind(*config::BIND_ADDR).await?;
         loop {
-            if let Ok(socket) = tcp_listener.accept().await {
-                return socket
+            select! {
+                Ok(socket) = tcp_listener.accept() => {
+                    return Ok(socket);
+                },
+                Some(Ok(event)) = reader.next().fuse() => {
+                    handle_event(event, display)?;
+                },
             }
         }
     }
 
-    pub async fn establish_connection(is_host: bool) -> Result<Self> {
-        if is_host {
-            let tcp_listener = TcpListener::bind(*config::BIND_ADDR).await?;
-            let (tcp_stream, peer_addr) = Conn::tcp_listen(&tcp_listener).await;
+    async fn tcp_connect(display: &mut Display) -> Result<TcpStream> {
+        let mut reader = EventStream::new();
+        let mut retry_interval = interval(Duration::from_secs(1));
+        loop {
+            select! {
+                _ = retry_interval.tick() => {
+                    if let Ok(stream) = TcpStream::connect(*config::CONN_ADDR).await {
+                        return Ok(stream);
+                    }
+                },
+                Some(Ok(event)) = reader.next().fuse() => {
+                    handle_event(event, display)?;
+                },
+            }
+        }
+    }
 
-            let udp_socket = UdpSocket::bind(*config::BIND_ADDR).await?;
-            udp_socket.connect(peer_addr).await?;
+    pub async fn establish_connection(conn_kind: ConnKind, display: &mut Display) -> Result<Box<dyn ConnTrait>> {
+        match conn_kind {
+            ConnKind::Host => {
+                let (tcp_stream, peer_addr) = Conn::tcp_listen(display).await?;
 
-            Ok(Conn { udp_socket, tcp_stream, is_host })
-        } else {
-            let tcp_stream = TcpStream::connect(*config::CONN_ADDR).await?;
+                let udp_socket = UdpSocket::bind(*config::BIND_ADDR).await?;
+                udp_socket.connect(peer_addr).await?;
 
-            let udp_socket = UdpSocket::bind(tcp_stream.local_addr().unwrap()).await?;
-            udp_socket.connect(*config::CONN_ADDR).await?;
+                Ok(Box::new(Conn { udp_socket, tcp_stream }))
+            },
+            ConnKind::Client => {
+                let tcp_stream = Conn::tcp_connect(display).await?;
 
-            Ok(Conn { udp_socket, tcp_stream, is_host })
+                let udp_socket = UdpSocket::bind(tcp_stream.local_addr().unwrap()).await?;
+                udp_socket.connect(*config::CONN_ADDR).await?;
+
+                Ok(Box::new(Conn { udp_socket, tcp_stream }))
+            },
+            ConnKind::Empty => Ok(Box::new(DummyConn)),
         }
     }
 
@@ -183,10 +251,6 @@ impl ConnTrait for Conn {
             }
         })
     }
-
-    fn is_host(&self) -> bool {
-        self.is_host
-    }
 }
 
 pub struct DummyConn;
@@ -223,10 +287,6 @@ impl ConnTrait for DummyConn {
 
     fn recv_tcp<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<(TcpPacketMode, [u8; 63])>> + Send + 'a>> {
         Box::pin(pending())
-    }
-
-    fn is_host(&self) -> bool {
-        true
     }
 }
 
