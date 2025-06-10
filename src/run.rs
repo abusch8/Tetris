@@ -22,21 +22,11 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
     let display = &mut Display::new(conn_kind.is_multiplayer())?;
     display.draw()?;
 
-    let frame_duration = Duration::from_nanos(if *config::MAX_FRAME_RATE > 0 {
-        1_000_000_000 / *config::MAX_FRAME_RATE
-    } else {
-        1
-    });
-
     pin! {
         let lock_delay = sleep(Duration::ZERO);
         let line_clear_delay_local = sleep(Duration::ZERO);
         let line_clear_delay_remote = sleep(Duration::ZERO);
     }
-
-
-    let mut debug_frame_interval = interval(Duration::from_secs(1));
-    let mut debug_frame = 0u64;
 
     let mut heartbeat_interval = interval(Duration::from_secs(1));
     let mut rtt = 0;
@@ -45,7 +35,6 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
 
     let game = &mut Game::start(conn_kind, start_level, &mut conn).await?;
 
-    let mut render_interval = interval(frame_duration);
     let mut drop_interval = calc_drop_interval(game.players[PlayerKind::Local].level);
 
     let mut prev_level = game.players[PlayerKind::Local].level;
@@ -81,13 +70,13 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
                     p.drop(&mut lock_delay);
                 }
             },
-            _ = render_interval.tick() => {
+            _ = display.render_interval.tick() => {
                 display.render(game)?;
-                debug_frame += *config::DISPLAY_FRAME_RATE as u64;
+                display.debug_frame += *config::DISPLAY_FRAME_RATE as u64;
             },
-            _ = debug_frame_interval.tick(), if *config::DISPLAY_FRAME_RATE => {
-                display.render_debug_info(debug_frame, rtt)?;
-                debug_frame = 0;
+            _ = display.debug_frame_interval.tick(), if *config::DISPLAY_FRAME_RATE => {
+                display.render_debug_info(rtt)?;
+                display.debug_frame = 0;
             },
             _ = heartbeat_interval.tick(), if conn_kind.is_multiplayer() => {
                 conn.send_ping().await?;

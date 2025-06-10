@@ -19,6 +19,7 @@ mod run;
 mod tetromino;
 
 #[derive(Parser)]
+#[command(version)]
 pub struct Cli {
     #[arg(long)]
     host: bool,

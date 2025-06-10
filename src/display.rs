@@ -1,12 +1,13 @@
-use std::{cmp::min, io::{Result, Stdout, Write, stdout}};
+use std::{cmp::min, io::{stdout, Result, Stdout, Write}, time::Duration};
 use crossterm::{
     execute, QueueableCommand,
     cursor::MoveTo,
     style::{Color, ContentStyle, Print, PrintStyledContent, StyledContent, Stylize},
     terminal::{self, Clear, ClearType},
 };
+use tokio::time::{interval, Interval};
 
-use crate::{debug, game::Game, tetromino::{Tetromino, TetrominoVariant}};
+use crate::{config, debug, game::Game, tetromino::{Tetromino, TetrominoVariant}};
 
 pub type Dimension = (i32, i32);
 
@@ -17,6 +18,9 @@ pub const CLEAR: &str = "        ";
 
 pub struct Display {
     pub stdout: Stdout,
+    pub render_interval: Interval,
+    pub debug_frame_interval: Interval,
+    pub debug_frame: u64,
     pub terminal_size: (u16, u16),
     pub board_x: Vec<(u16, u16)>,
     pub board_y: (u16, u16),
@@ -55,8 +59,21 @@ impl Display {
             BOARD_DIMENSION.1 as u16 + 2,
         );
 
+        let max_frame_rate = *config::MAX_FRAME_RATE;
+        let frame_duration = Duration::from_nanos(if max_frame_rate > 0 {
+            1_000_000_000 / max_frame_rate
+        } else {
+            1
+        });
+
+        let render_interval = interval(frame_duration);
+        let debug_frame_interval = interval(Duration::from_secs(1));
+
         Ok(Display {
             stdout,
+            render_interval,
+            debug_frame_interval,
+            debug_frame: 0u64,
             terminal_size,
             board_x,
             board_y,
@@ -247,12 +264,12 @@ impl Display {
         Ok(self)
     }
 
-    pub fn render_debug_info(&mut self, debug_frame: u64, rtt: u128) -> Result<&mut Self> {
+    pub fn render_debug_info(&mut self, rtt: u128) -> Result<&mut Self> {
         self.stdout
             .queue(MoveTo(0, 0))?
             .queue(Print(CLEAR))?
             .queue(MoveTo(0, 0))?
-            .queue(Print(format!("{} fps", debug_frame)))?;
+            .queue(Print(format!("{} fps", self.debug_frame)))?;
         if self.is_multiplayer {
             self.stdout
                 .queue(MoveTo(0, 1))?
