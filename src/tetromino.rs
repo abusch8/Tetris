@@ -3,9 +3,12 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use strum_macros::EnumIter;
 
-use crate::{config, display::{Dimension, BOARD_DIMENSION}, game::RotationDirection, player::Stack};
+use crate::{config, display::{Dimension, BOARD_DIMENSION}, player::Stack};
 
 pub type Shape = Vec<Dimension>;
+
+#[derive(PartialEq)]
+pub enum RotationDirection { Clockwise, CounterClockwise }
 
 #[derive(Clone, Copy, FromPrimitive, ToPrimitive, PartialEq, Debug)]
 pub enum CardinalDirection { North, East, South, West }

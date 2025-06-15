@@ -139,6 +139,8 @@ impl Display {
             .render_stats(game)?
             .render_debug_log()?;
 
+        self.debug_frame += *config::DISPLAY_FRAME_RATE as u64;
+
         Ok(self.stdout.flush()?)
     }
 
@@ -277,6 +279,7 @@ impl Display {
                 .queue(MoveTo(0, 1))?
                 .queue(Print(format!("{} ms", rtt)))?;
         }
+        self.debug_frame = 0;
         Ok(self)
     }
 

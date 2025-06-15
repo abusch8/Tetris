@@ -6,7 +6,7 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use tokio::{net::{TcpListener, TcpStream, UdpSocket}, select, time::interval};
 
-use crate::{config, debug_log, display::Display, event::handle_conn_event, player::Player};
+use crate::{config, debug_log, display::Display, event::handle_conn_event, game::GameInfo, player::Player};
 
 #[derive(FromPrimitive, ToPrimitive)]
 pub enum UdpPacketMode {
@@ -17,9 +17,9 @@ pub enum UdpPacketMode {
 pub enum TcpPacketMode {
     Ping,
     Pong,
-    Seeds,
-    Place,
+    Info,
     Hold,
+    Place,
 }
 
 #[derive(Clone, Copy)]
@@ -40,7 +40,7 @@ impl ConnKind {
     }
 
     pub fn is_multiplayer(&self) -> bool {
-        return !matches!(self, ConnKind::Empty);
+        return matches!(self, ConnKind::Host) || matches!(self, ConnKind::Client);
     }
 
     pub fn is_host(&self) -> bool {
@@ -52,9 +52,9 @@ impl ConnKind {
 pub trait ConnTrait {
     async fn send_ping(&self) -> Result<()>;
     async fn send_pong(&self, ts_bytes: [u8; 63]) -> Result<()>;
-    async fn send_seeds(&self, p1_seed: u64, p2_seed: u64) -> Result<()>;
-    async fn send_place(&self, player: &Player) -> Result<()>;
+    async fn send_info(&self, game_info: &GameInfo) -> Result<()>;
     async fn send_hold(&self) -> Result<()>;
+    async fn send_place(&self, player: &Player) -> Result<()>;
     async fn send_pos(&self, player: &Player) -> Result<()>;
     fn recv_udp<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<(UdpPacketMode, [u8; 63])>> + Send + 'a>>;
     fn recv_tcp<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<(TcpPacketMode, [u8; 63])>> + Send + 'a>>;
@@ -87,9 +87,12 @@ impl Conn {
         loop {
             select! {
                 _ = retry_interval.tick() => {
-                    if let Ok(stream) = TcpStream::connect(peer_addr).await {
-                        let bind_addr = stream.local_addr()?;
-                        return Ok((stream, bind_addr));
+                    match TcpStream::connect(peer_addr).await {
+                        Ok(stream) => {
+                            let bind_addr = stream.local_addr()?;
+                            return Ok((stream, bind_addr));
+                        }
+                        Err(_) => continue,
                     }
                 },
                 Some(Ok(event)) = reader.next().fuse() => {
@@ -178,21 +181,10 @@ impl ConnTrait for Conn {
         Ok(())
     }
 
-    async fn send_seeds(&self, p1_seed: u64, p2_seed: u64) -> Result<()> {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&p1_seed.to_le_bytes());
-        buf.extend_from_slice(&p2_seed.to_le_bytes());
+    async fn send_info(&self, game_info: &GameInfo) -> Result<()> {
         self.send_tcp(
-            TcpPacketMode::Seeds,
-            &buf,
-        ).await?;
-        Ok(())
-    }
-
-    async fn send_place(&self, player: &Player) -> Result<()> {
-        self.send_tcp(
-            TcpPacketMode::Place,
-            &player.falling.geometry.to_bytes(),
+            TcpPacketMode::Info,
+            &game_info.to_bytes(),
         ).await?;
         Ok(())
     }
@@ -201,6 +193,14 @@ impl ConnTrait for Conn {
         self.send_tcp(
             TcpPacketMode::Hold,
             b"",
+        ).await?;
+        Ok(())
+    }
+
+    async fn send_place(&self, player: &Player) -> Result<()> {
+        self.send_tcp(
+            TcpPacketMode::Place,
+            &player.falling.geometry.to_bytes(),
         ).await?;
         Ok(())
     }
@@ -260,15 +260,15 @@ impl ConnTrait for DummyConn {
         Ok(())
     }
 
-    async fn send_seeds(&self, _p1_seed: u64, _p2_seed: u64) -> Result<()> {
-        Ok(())
-    }
-
-    async fn send_place(&self, _player: &Player) -> Result<()> {
+    async fn send_info(&self, _game_info: &GameInfo) -> Result<()> {
         Ok(())
     }
 
     async fn send_hold(&self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn send_place(&self, _player: &Player) -> Result<()> {
         Ok(())
     }
 

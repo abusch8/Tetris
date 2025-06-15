@@ -1,9 +1,11 @@
-use std::{collections::HashSet, io::Result, mem::replace, ops::{Index, IndexMut}, pin::Pin, time::Duration};
+use std::{collections::HashSet, io::Result, mem::replace, pin::Pin, time::Duration};
 use crossterm::style::Color;
-use rand::rngs::StdRng;
-use tokio::time::{sleep, Sleep};
+use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+use strum::IntoEnumIterator;
+use tokio::time::{interval, sleep, Interval, Sleep};
+use num_derive::FromPrimitive;
 
-use crate::{conn::ConnTrait, display::BOARD_DIMENSION, game::{rand_bag_gen, RotationDirection, ShiftDirection}, tetromino::*};
+use crate::{conn::ConnTrait, display::BOARD_DIMENSION, tetromino::*};
 
 pub type Stack = Vec<Vec<Option<Color>>>;
 
@@ -32,24 +34,12 @@ static O_OFFSETS: [[(i32, i32); 5]; 4] = [
     [(-1,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
 ];
 
+
+#[derive(FromPrimitive, PartialEq)]
+pub enum ShiftDirection { Left, Right }
+
 #[derive(Copy, Clone)]
-pub enum PlayerKind {
-    Local,
-    Remote,
-}
-
-impl<T> Index<PlayerKind> for Vec<T> {
-    type Output = T;
-    fn index(&self, rg: PlayerKind) -> &T {
-        &self[rg as usize]
-    }
-}
-
-impl<T> IndexMut<PlayerKind> for Vec<T> {
-    fn index_mut(&mut self, rg: PlayerKind) -> &mut T {
-        &mut self[rg as usize]
-    }
-}
+pub enum PlayerKind { Local, Remote }
 
 pub struct Player {
     pub kind: PlayerKind,
@@ -70,11 +60,33 @@ pub struct Player {
     pub lost: bool,
     pub locking: bool,
     pub lock_reset_count: u8,
+    pub drop_interval: Interval,
+}
+
+fn calc_drop_interval(level: u32) -> Interval {
+    let drop_rate = (0.8 - (level - 1) as f32 * 0.007).powf((level - 1) as f32);
+    let drop_duration = Duration::from_nanos((drop_rate * 1_000_000_000f32) as u64);
+
+    interval(if drop_duration.is_zero() {
+        Duration::from_nanos(1)
+    } else {
+        drop_duration
+    })
+}
+
+fn rand_bag_gen(seed: &mut StdRng) -> Vec<Tetromino> {
+    let mut bag = TetrominoVariant::iter()
+        .map(|variant| Tetromino::new(variant))
+        .collect::<Vec<Tetromino>>();
+
+    bag.shuffle(seed);
+    bag
 }
 
 impl Player {
-    pub fn new(kind: PlayerKind, start_level: u32, seed: &mut StdRng) -> Self {
-        let mut bag = rand_bag_gen(seed);
+    pub fn new(kind: PlayerKind, start_level: u32, seed: u64) -> Self {
+        let mut seed = StdRng::seed_from_u64(seed);
+        let mut bag = rand_bag_gen(&mut seed);
         Player {
             kind,
             falling: bag.pop().unwrap(),
@@ -82,7 +94,7 @@ impl Player {
             ghost: None,
             next: bag.split_off(bag.len() - 3),
             bag,
-            seed: seed.clone(),
+            seed,
             stack: vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize],
             start_level,
             level: start_level,
@@ -94,7 +106,12 @@ impl Player {
             lost: false,
             locking: false,
             lock_reset_count: 0,
+            drop_interval: calc_drop_interval(start_level),
         }
+    }
+
+    pub fn calc_drop_interval(&mut self) {
+        self.drop_interval = calc_drop_interval(self.level);
     }
 
     pub fn calc_score(&mut self, num_cleared: u32) {
@@ -168,6 +185,7 @@ impl Player {
             self.combo += 1;
             self.calc_score(num_cleared);
             self.update_ghost();
+            self.calc_drop_interval();
         } else {
             self.combo = -1;
         }

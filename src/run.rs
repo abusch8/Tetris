@@ -1,20 +1,9 @@
 use std::{io::Result, time::{SystemTime, UNIX_EPOCH}};
 use crossterm::event::EventStream;
 use futures::{FutureExt, stream::StreamExt};
-use tokio::{pin, select, time::{interval, sleep, Duration, Interval}};
+use tokio::{pin, select, time::{interval, sleep, Duration}};
 
-use crate::{config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, player::PlayerKind, tetromino::Geometry};
-
-fn calc_drop_interval(level: u32) -> Interval {
-    let drop_rate = (0.8 - (level - 1) as f32 * 0.007).powf((level - 1) as f32);
-    let drop_duration = Duration::from_nanos((drop_rate * 1_000_000_000f32) as u64);
-
-    interval(if drop_duration.is_zero() {
-        Duration::from_nanos(1)
-    } else {
-        drop_duration
-    })
-}
+use crate::{config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, tetromino::Geometry};
 
 pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
     let mut reader = EventStream::new();
@@ -32,12 +21,7 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
     let mut rtt = 0;
 
     let mut conn = Conn::establish_connection(conn_kind, display).await?;
-
     let game = &mut Game::start(conn_kind, start_level, &mut conn).await?;
-
-    let mut drop_interval = calc_drop_interval(game.players[PlayerKind::Local].level);
-
-    let mut prev_level = game.players[PlayerKind::Local].level;
 
     Ok(loop {
         select! {
@@ -51,32 +35,33 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
                     &mut line_clear_delay_local,
                 ).await?
             },
-            _ = &mut lock_delay, if game.players[PlayerKind::Local].locking => {
-                game.players[PlayerKind::Local].place(&mut line_clear_delay_local, &mut conn).await?;
+            _ = &mut lock_delay, if game.players.local.locking => {
+                game.players.local.place(&mut line_clear_delay_local, &mut conn).await?;
             },
             _ = &mut line_clear_delay_local, if (
-                game.players[PlayerKind::Local].clearing.len() > 0
+                game.players.local.clearing.len() > 0
             ) => {
-                game.players[PlayerKind::Local].line_clear();
+                game.players.local.line_clear();
             },
             _ = &mut line_clear_delay_remote, if (
                 conn_kind.is_multiplayer() &&
-                game.players[PlayerKind::Remote].clearing.len() > 0
+                game.players.remote.as_mut().unwrap().clearing.len() > 0
             ) => {
-                game.players[PlayerKind::Remote].line_clear();
+                game.players.remote.as_mut().unwrap().line_clear();
             },
-            _ = drop_interval.tick() => {
-                for p in game.players.iter_mut() {
-                    p.drop(&mut lock_delay);
-                }
+            _ = game.players.local.drop_interval.tick() => {
+                game.players.local.drop(&mut lock_delay);
+            },
+            _ = async { game.players.remote.as_mut().unwrap().drop_interval.tick().await }, if (
+                conn_kind.is_multiplayer()
+            ) => {
+                game.players.remote.as_mut().unwrap().drop(&mut lock_delay);
             },
             _ = display.render_interval.tick() => {
                 display.render(game)?;
-                display.debug_frame += *config::DISPLAY_FRAME_RATE as u64;
             },
             _ = display.debug_frame_interval.tick(), if *config::DISPLAY_FRAME_RATE => {
                 display.render_debug_info(rtt)?;
-                display.debug_frame = 0;
             },
             _ = heartbeat_interval.tick(), if conn_kind.is_multiplayer() => {
                 conn.send_ping().await?;
@@ -86,7 +71,7 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
                     UdpPacketMode::Pos => {
                         let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
                         let geometry = Geometry::from_bytes(geometry_bytes);
-                        game.players[PlayerKind::Remote].set_falling_geometry(geometry);
+                        game.players.remote.as_mut().unwrap().set_falling_geometry(geometry);
                     },
                 }
             },
@@ -104,20 +89,16 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
                     TcpPacketMode::Place => {
                         let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
                         let geometry = Geometry::from_bytes(geometry_bytes);
-                        game.players[PlayerKind::Remote].set_falling_geometry(geometry);
-                        game.players[PlayerKind::Remote].place(&mut line_clear_delay_remote, &conn).await?;
+                        game.players.remote.as_mut().unwrap().set_falling_geometry(geometry);
+                        game.players.remote.as_mut().unwrap().place(&mut line_clear_delay_remote, &conn).await?;
                     },
                     TcpPacketMode::Hold => {
-                        game.players[PlayerKind::Remote].hold(&conn).await?;
+                        game.players.remote.as_mut().unwrap().hold(&conn).await?;
                     },
                     _ => (),
                 }
             },
-            _ = async {}, if game.players[PlayerKind::Local].level != prev_level => {
-                prev_level = game.players[PlayerKind::Local].level;
-                drop_interval = calc_drop_interval(game.players[PlayerKind::Local].level);
-            },
-            _ = async {}, if game.players.iter().any(|p| p.lost) => {
+            _ = async {}, if game.players.local.lost => {
                 break;
             },
         }
