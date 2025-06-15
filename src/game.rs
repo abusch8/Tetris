@@ -1,6 +1,5 @@
-use std::{io::Result, ops::Index, pin::Pin, time::Duration};
+use std::{io::Result, ops::Index};
 use rand::{thread_rng, Rng};
-use tokio::time::{sleep, Sleep};
 
 use crate::{conn::{ConnKind, ConnTrait, TcpPacketMode}, debug_log, player::{Player, PlayerKind}};
 

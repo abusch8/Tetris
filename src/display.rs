@@ -287,7 +287,7 @@ impl Display {
         if let Some(debugger) = &*debug::DEBUGGER.read().unwrap() {
             for i in 0..min(6, debugger.log.len()) {
                 self.stdout
-                    .queue(MoveTo(0, self.terminal_size.1 - i as u16))?
+                    .queue(MoveTo(0, self.terminal_size.1 - i as u16 - 1))?
                     .queue(Print(&debugger.log[debugger.log.len() - i - 1]))?;
             }
         }
