@@ -9,7 +9,6 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
     let mut reader = EventStream::new();
 
     let display = &mut Display::new(conn_kind.is_multiplayer())?;
-    display.draw()?;
 
     pin! {
         let lock_delay = sleep(Duration::ZERO);
@@ -23,7 +22,7 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
     let mut conn = Conn::establish_connection(conn_kind, display).await?;
     let game = &mut Game::start(conn_kind, start_level, &mut conn).await?;
 
-    Ok(loop {
+    loop {
         select! {
             Some(Ok(event)) = reader.next().fuse() => {
                 handle_game_event(
@@ -58,10 +57,10 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
                 game.players.remote.as_mut().unwrap().drop(&mut lock_delay);
             },
             _ = display.render_interval.tick() => {
-                display.render(game)?;
+                display.render(game, rtt)?;
             },
-            _ = display.debug_frame_interval.tick(), if *config::DISPLAY_FRAME_RATE => {
-                display.render_debug_info(rtt)?;
+            _ = display.frame_count_interval.tick(), if *config::DISPLAY_FRAME_RATE => {
+                display.calc_fps();
             },
             _ = heartbeat_interval.tick(), if conn_kind.is_multiplayer() => {
                 conn.send_ping().await?;
@@ -84,7 +83,7 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
                         let ts_bytes: [u8; 16] = payload[0..16].try_into().unwrap();
                         let res_ts = u128::from_le_bytes(ts_bytes);
                         let now_ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
-                        rtt = now_ts - res_ts;
+                        rtt = now_ts.saturating_sub(res_ts);
                     },
                     TcpPacketMode::Place => {
                         let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
@@ -98,10 +97,14 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
                     _ => (),
                 }
             },
-            _ = async {}, if game.players.local.lost => {
+            _ = async {}, if (
+                game.players.local.lost || conn_kind.is_multiplayer() &&
+                game.players.remote.as_ref().unwrap().lost
+            ) => {
                 break;
             },
         }
-    })
+    }
+    Ok(())
 }
 

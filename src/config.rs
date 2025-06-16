@@ -6,7 +6,6 @@ use ini::Ini;
 use home::home_dir;
 use lazy_static::lazy_static;
 
-// use crate::debug::Debugger;
 use crate::Cli;
 
 lazy_static! {
@@ -20,15 +19,20 @@ lazy_static! {
         .parse()
         .unwrap_or_else(|_| panic!("Invalid max_frame_rate display config value"));
 
+    pub static ref USE_XTERM_256_COLORS: bool = CONFIG
+        .get_from_or(Some("display"), "use_xterm_256_colors", "true")
+        .parse()
+        .unwrap_or_else(|_| panic!("Invalid use_xterm_256_colors display config value"));
+
     pub static ref DISPLAY_FRAME_RATE: bool = CONFIG
         .get_from_or(Some("display"), "display_frame_rate", "false")
         .parse()
         .unwrap_or_else(|_| panic!("Invalid display_frame_rate display config value"));
 
-    pub static ref USE_XTERM_256_COLORS: bool = CONFIG
-        .get_from_or(Some("display"), "use_xterm_256_colors", "true")
+    pub static ref DISPLAY_PING: bool = CONFIG
+        .get_from_or(Some("multiplayer"), "display_ping", "false")
         .parse()
-        .unwrap_or_else(|_| panic!("Invalid use_xterm_256_colors display config value"));
+        .unwrap_or_else(|_| panic!("Invalid display_ping multiplayer config value"));
 
     pub static ref BIND_ADDR: SocketAddr = match &CLI.bind_addr {
         Some(addr) => addr,

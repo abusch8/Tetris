@@ -23,8 +23,8 @@ impl Index<usize> for Players {
     fn index(&self, index: usize) -> &Self::Output {
         match index {
             0 => &self.local,
-            1 => &self.remote.as_ref().unwrap_or_else(|| panic!("multiplayer not enabled")),
-            _ => panic!("index out of bounds"),
+            1 => &self.remote.as_ref().unwrap_or_else(|| panic!("Multiplayer not enabled")),
+            _ => panic!("Index out of bounds"),
         }
     }
 }
@@ -63,7 +63,7 @@ impl GameInfo {
         buf
     }
 
-    fn from_bytes(buf: [u8; 63]) -> GameInfo {
+    pub fn from_bytes(buf: [u8; 63]) -> GameInfo {
         let start_level_bytes: [u8; 4] = buf[0..4].try_into().unwrap();
         let start_level = u32::from_le_bytes(start_level_bytes);
         let p1_seed_bytes: [u8; 8] = buf[4..12].try_into().unwrap();

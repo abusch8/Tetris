@@ -18,6 +18,7 @@ tokio = { version = "1.38", features = ["full"] }
 async-trait = "0.1"
 clap = { version = "4.5.40", features = ["derive"] }
 chrono = "0.4.41"
+rayon = "1.8"
 
 [dependencies.crossterm]
 version = "0.27.0"

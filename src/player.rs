@@ -41,20 +41,28 @@ pub enum ShiftDirection { Left, Right }
 #[derive(Copy, Clone)]
 pub enum PlayerKind { Local, Remote }
 
-pub struct Player {
-    pub kind: PlayerKind,
-    pub falling: Tetromino,
-    pub holding: Option<Tetromino>,
-    pub ghost: Option<Tetromino>,
-    pub next: Vec<Tetromino>,
-    pub bag: Vec<Tetromino>,
-    pub seed: StdRng,
-    pub stack: Stack,
+pub struct Bag {
+    seed: StdRng,
+    next: Vec<Tetromino>,
+    rest: Vec<Tetromino>,
+}
+
+pub struct Score {
     pub start_level: u32,
     pub level: u32,
     pub lines: u32,
     pub score: u32,
     pub combo: i32,
+}
+
+pub struct Player {
+    pub kind: PlayerKind,
+    pub falling: Tetromino,
+    pub holding: Option<Tetromino>,
+    pub ghost: Option<Tetromino>,
+    pub bag: Bag,
+    pub stack: Stack,
+    pub score: Score,
     pub clearing: HashSet<usize>,
     pub can_hold: bool,
     pub lost: bool,
@@ -63,59 +71,51 @@ pub struct Player {
     pub drop_interval: Interval,
 }
 
-fn calc_drop_interval(level: u32) -> Interval {
-    let drop_rate = (0.8 - (level - 1) as f32 * 0.007).powf((level - 1) as f32);
-    let drop_duration = Duration::from_nanos((drop_rate * 1_000_000_000f32) as u64);
-
-    interval(if drop_duration.is_zero() {
-        Duration::from_nanos(1)
-    } else {
-        drop_duration
-    })
-}
-
-fn rand_bag_gen(seed: &mut StdRng) -> Vec<Tetromino> {
-    let mut bag = TetrominoVariant::iter()
-        .map(|variant| Tetromino::new(variant))
-        .collect::<Vec<Tetromino>>();
-
-    bag.shuffle(seed);
-    bag
-}
-
-impl Player {
-    pub fn new(kind: PlayerKind, start_level: u32, seed: u64) -> Self {
+impl Bag {
+    fn new(seed: u64) -> Self {
         let mut seed = StdRng::seed_from_u64(seed);
-        let mut bag = rand_bag_gen(&mut seed);
-        Player {
-            kind,
-            falling: bag.pop().unwrap(),
-            holding: None,
-            ghost: None,
-            next: bag.split_off(bag.len() - 3),
-            bag,
+        let mut bag = Bag::rand_bag_gen(&mut seed);
+        Bag {
             seed,
-            stack: vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize],
+            next: bag.split_off(bag.len() - 3),
+            rest: bag,
+        }
+    }
+
+    fn rand_bag_gen(seed: &mut StdRng) -> Vec<Tetromino> {
+        let mut bag = TetrominoVariant::iter()
+            .map(|variant| Tetromino::new(variant))
+            .collect::<Vec<Tetromino>>();
+
+        bag.shuffle(seed);
+        bag
+    }
+
+    fn get_next(&mut self) -> Tetromino {
+        self.next.push(self.rest.pop().unwrap());
+        if self.rest.is_empty() {
+            self.rest = Bag::rand_bag_gen(&mut self.seed);
+        }
+        self.next.remove(0)
+    }
+}
+
+impl Score {
+    pub fn new(start_level: u32) -> Self {
+        Score {
             start_level,
             level: start_level,
             lines: 0,
             score: 0,
             combo: -1,
-            clearing: HashSet::new(),
-            can_hold: true,
-            lost: false,
-            locking: false,
-            lock_reset_count: 0,
-            drop_interval: calc_drop_interval(start_level),
         }
     }
 
-    pub fn calc_drop_interval(&mut self) {
-        self.drop_interval = calc_drop_interval(self.level);
-    }
-
-    pub fn calc_score(&mut self, num_cleared: u32) {
-        let full_clear = self.stack.iter().flatten().all(|block| block.is_none());
+    pub fn score_clear(&mut self, num_cleared: u32, stack: &Stack) {
+        let full_clear = stack.iter().flatten().all(|block| block.is_none());
+        self.lines += num_cleared;
+        self.level = self.start_level + self.lines / 10;
+        self.combo += 1;
         self.score += if full_clear {
             match num_cleared {
                 1 => self.level * 800,
@@ -135,13 +135,37 @@ impl Player {
         };
         self.score += 50 * self.combo as u32 * self.level;
     }
+}
 
-    pub fn get_next(&mut self) -> Tetromino {
-        self.next.push(self.bag.pop().unwrap());
-        if self.bag.is_empty() {
-            self.bag = rand_bag_gen(&mut self.seed);
+impl Player {
+    pub fn new(kind: PlayerKind, start_level: u32, seed: u64) -> Self {
+        let mut bag = Bag::new(seed);
+        Player {
+            kind,
+            falling: bag.get_next(),
+            holding: None,
+            ghost: None,
+            bag,
+            stack: vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize],
+            score: Score::new(start_level),
+            clearing: HashSet::new(),
+            can_hold: true,
+            lost: false,
+            locking: false,
+            lock_reset_count: 0,
+            drop_interval: Player::calc_drop_interval(start_level),
         }
-        self.next.remove(0)
+    }
+
+    fn calc_drop_interval(level: u32) -> Interval {
+        let drop_rate = (0.8 - (level - 1) as f32 * 0.007).powf((level - 1) as f32);
+        let drop_duration = Duration::from_nanos((drop_rate * 1_000_000_000f32) as u64);
+
+        interval(if drop_duration.is_zero() {
+            Duration::from_nanos(1)
+        } else {
+            drop_duration
+        })
     }
 
     pub fn update_ghost(&mut self) {
@@ -180,14 +204,11 @@ impl Player {
         self.stack.extend(vec![vec![None; BOARD_DIMENSION.0 as usize]; num_cleared as usize]);
 
         if num_cleared > 0 {
-            self.lines += num_cleared;
-            self.level = self.start_level + self.lines / 10;
-            self.combo += 1;
-            self.calc_score(num_cleared);
+            self.score.score_clear(num_cleared, &self.stack);
             self.update_ghost();
-            self.calc_drop_interval();
+            self.drop_interval = Player::calc_drop_interval(self.score.level);
         } else {
-            self.combo = -1;
+            self.score.combo = -1;
         }
 
         self.clearing.clear();
@@ -315,7 +336,7 @@ impl Player {
             conn.send_place(self).await?;
         }
 
-        let mut falling = self.get_next();
+        let mut falling = self.bag.get_next();
         for i in 17..20 {
             if self.stack[i].iter().any(|block| block.is_some()) {
                 falling.geometry.transform(0, 1);
@@ -335,7 +356,7 @@ impl Player {
 
     pub async fn hold(&mut self, conn: &Box<dyn ConnTrait>) -> Result<()> {
         if self.can_hold {
-            let swap = self.holding.clone().unwrap_or_else(|| self.get_next());
+            let swap = self.holding.clone().unwrap_or_else(|| self.bag.get_next());
 
             self.holding = Some(Tetromino::new(self.falling.variant));
             self.falling = swap;
@@ -366,7 +387,7 @@ impl Player {
     ) -> Result<()> {
         self.drop(lock_delay);
         if !self.falling.hitting_bottom(&self.stack) {
-            self.score += 1;
+            self.score.score += 1;
         }
         conn.send_pos(self).await?;
         Ok(())
@@ -379,7 +400,7 @@ impl Player {
     ) -> Result<()> {
         while !self.falling.hitting_bottom(&self.stack) {
             self.falling.geometry.transform(0, -1);
-            self.score += 2;
+            self.score.score += 2;
         }
         self.place(line_clear_delay, conn).await?;
         Ok(())

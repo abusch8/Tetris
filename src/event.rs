@@ -82,7 +82,7 @@ pub async fn handle_game_event(
                 }
             }
         },
-        Event::Resize(_, _) => display.draw()?,
+        Event::Resize(_, _) => display.resize()?,
         _ => (),
     })
 }
@@ -101,7 +101,7 @@ pub fn handle_conn_event(event: Event, display: &mut Display) -> Result<()> {
                 }
             }
         }
-        Event::Resize(_, _) => display.draw()?,
+        Event::Resize(_, _) => display.resize()?,
         _ => (),
     })
 }

@@ -2,7 +2,7 @@ use std::io::{stdout, Result};
 use crossterm::{
     cursor::{Hide, Show},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, SetTitle},
+    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetTitle},
 };
 use clap::Parser;
 
@@ -38,13 +38,13 @@ pub struct Cli {
 }
 
 pub fn enter_tui_mode() -> Result<()> {
-    execute!(stdout(), Hide, Clear(ClearType::All), SetTitle("TETRIS"))?;
+    execute!(stdout(), Hide, Clear(ClearType::All), SetTitle("TETRIS"))?; // EnterAlternateScreen,
     enable_raw_mode()?;
     Ok(())
 }
 
 pub fn exit_tui_mode() -> Result<()> {
-    execute!(stdout(), Show, Clear(ClearType::All))?;
+    execute!(stdout(), Show, Clear(ClearType::All))?; // , LeaveAlternateScreen
     disable_raw_mode()?;
     Ok(())
 }
