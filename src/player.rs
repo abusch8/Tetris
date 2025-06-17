@@ -42,9 +42,9 @@ pub enum ShiftDirection { Left, Right }
 pub enum PlayerKind { Local, Remote }
 
 pub struct Bag {
-    seed: StdRng,
-    next: Vec<Tetromino>,
-    rest: Vec<Tetromino>,
+    pub seed: StdRng,
+    pub next: Vec<Tetromino>,
+    pub rest: Vec<Tetromino>,
 }
 
 pub struct Score {
@@ -140,13 +140,16 @@ impl Score {
 impl Player {
     pub fn new(kind: PlayerKind, start_level: u32, seed: u64) -> Self {
         let mut bag = Bag::new(seed);
+        let stack = vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize];
+        let mut falling = bag.get_next();
+        falling.init_transform(&stack);
         Player {
             kind,
-            falling: bag.get_next(),
+            falling,
             holding: None,
             ghost: None,
             bag,
-            stack: vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize],
+            stack,
             score: Score::new(start_level),
             clearing: HashSet::new(),
             can_hold: true,
@@ -337,11 +340,7 @@ impl Player {
         }
 
         let mut falling = self.bag.get_next();
-        for i in 17..20 {
-            if self.stack[i].iter().any(|block| block.is_some()) {
-                falling.geometry.transform(0, 1);
-            }
-        }
+        falling.init_transform(&self.stack);
 
         self.falling = falling;
         self.locking = false;
@@ -356,9 +355,11 @@ impl Player {
 
     pub async fn hold(&mut self, conn: &Box<dyn ConnTrait>) -> Result<()> {
         if self.can_hold {
-            let swap = self.holding.clone().unwrap_or_else(|| self.bag.get_next());
+            let mut swap = self.holding.clone().unwrap_or(self.bag.get_next());
+            swap.init_transform(&self.stack);
 
-            self.holding = Some(Tetromino::new(self.falling.variant));
+            let tetromino = Tetromino::new(self.falling.variant);
+            self.holding = Some(tetromino);
             self.falling = swap;
             self.can_hold = false;
 

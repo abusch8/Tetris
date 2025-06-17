@@ -109,8 +109,8 @@ impl Tetromino {
         match variant {
             TetrominoVariant::I => Tetromino {
                 geometry: Geometry {
-                    shape: vec![(3, 18), (4, 18), (5, 18), (6, 18)],
-                    center: (4, 18),
+                    shape: vec![(0, 1), (1, 1), (2, 1), (3, 1)],
+                    center: (1, 1),
                     direction: CardinalDirection::North,
                 },
                 color: if *config::USE_XTERM_256_COLORS { Color::AnsiValue(51) } else { Color::Cyan },
@@ -118,8 +118,8 @@ impl Tetromino {
             },
             TetrominoVariant::J => Tetromino {
                 geometry: Geometry {
-                    shape: vec![(4, 19), (4, 18), (5, 18), (6, 18)],
-                    center: (5, 18),
+                    shape: vec![(1, 1), (1, 0), (2, 0), (3, 0)],
+                    center: (2, 0),
                     direction: CardinalDirection::North,
                 },
                 color: if *config::USE_XTERM_256_COLORS { Color::AnsiValue(33) } else { Color::Blue },
@@ -127,8 +127,8 @@ impl Tetromino {
             },
             TetrominoVariant::L => Tetromino {
                 geometry: Geometry {
-                    shape: vec![(4, 18), (5, 18), (6, 18), (6, 19)],
-                    center: (5, 18),
+                    shape: vec![(1, 0), (2, 0), (3, 0), (3, 1)],
+                    center: (2, 0),
                     direction: CardinalDirection::North,
                 },
                 color: if *config::USE_XTERM_256_COLORS { Color::AnsiValue(202) } else { Color::White },
@@ -136,8 +136,8 @@ impl Tetromino {
             },
             TetrominoVariant::O => Tetromino {
                 geometry: Geometry {
-                    shape: vec![(4, 18), (4, 19), (5, 18), (5, 19)],
-                    center: (4, 18),
+                    shape: vec![(1, 0), (1, 1), (2, 0), (2, 1)],
+                    center: (1, 0),
                     direction: CardinalDirection::North,
                 },
                 color: if *config::USE_XTERM_256_COLORS { Color::AnsiValue(226) } else { Color::Yellow },
@@ -145,8 +145,8 @@ impl Tetromino {
             },
             TetrominoVariant::S => Tetromino {
                 geometry: Geometry {
-                    shape: vec![(4, 18), (5, 18), (5, 19), (6, 19)],
-                    center: (5, 18),
+                    shape: vec![(1, 0), (2, 0), (2, 1), (3, 1)],
+                    center: (2, 0),
                     direction: CardinalDirection::North,
                 },
                 color: if *config::USE_XTERM_256_COLORS { Color::AnsiValue(40) } else { Color::Green },
@@ -154,8 +154,8 @@ impl Tetromino {
             },
             TetrominoVariant::T => Tetromino {
                 geometry: Geometry {
-                    shape: vec![(4, 18), (5, 18), (5, 19), (6, 18)],
-                    center: (5, 18),
+                    shape: vec![(1, 0), (2, 0), (2, 1), (3, 0)],
+                    center: (2, 0),
                     direction: CardinalDirection::North,
                 },
                 color: if *config::USE_XTERM_256_COLORS { Color::AnsiValue(165) } else { Color::Magenta },
@@ -163,14 +163,31 @@ impl Tetromino {
             },
             TetrominoVariant::Z => Tetromino {
                 geometry: Geometry {
-                    shape: vec![(4, 19), (5, 19), (5, 18), (6, 18)],
-                    center: (5, 18),
+                    shape: vec![(1, 1), (2, 1), (2, 0), (3, 0)],
+                    center: (2, 0),
                     direction: CardinalDirection::North,
                 },
                 color: if *config::USE_XTERM_256_COLORS { Color::AnsiValue(196) } else { Color::Red },
                 variant,
             },
         }
+    }
+
+    pub fn init_transform(&mut self, stack: &Stack) {
+        self.geometry.transform(3, 18);
+        for i in 17..20 {
+            if stack[i].iter().any(|block| block.is_some()) {
+                self.geometry.transform(0, 1);
+            }
+        }
+    }
+
+    pub fn at_pos(&self, x: u16, y: u16, x_offset: u16, y_offset: u16) -> bool {
+        self.geometry.shape.iter().any(|d| {
+            let t_x = x_offset + (d.0 as u16 + 1) * 2;
+            let t_y = y_offset + (d.1 as u16);
+            t_y == y && (t_x == x || t_x - 1 == x)
+        })
     }
 
     pub fn overlapping(&self, stack: &Stack) -> bool {

@@ -1,12 +1,11 @@
 use std::{cmp::min, collections::HashMap, io::{stdout, Result, Stdout, Write}, time::Duration};
 use crossterm::{
-    cursor::MoveTo, execute, style::{Attribute, Color, ContentStyle, Print, PrintStyledContent, StyledContent, Stylize}, terminal::{self, Clear, ClearType, EnterAlternateScreen}, QueueableCommand
+    cursor::MoveTo, style::{Attribute, Color, ContentStyle, StyledContent, Stylize}, terminal, QueueableCommand
 };
 use tokio::time::{interval, Interval};
-use rayon::prelude::*;
 use std::fmt::Write as FmtWrite;
 
-use crate::{config, debug, game::Game, tetromino::{Tetromino, TetrominoVariant}};
+use crate::{config, debug, game::Game};
 
 pub type Dimension = (i32, i32);
 
@@ -181,56 +180,21 @@ impl Display {
         for y in 0..height {
             let mut row = Vec::with_capacity(width);
             for x in 0..width {
-                // let mut cell = StyledContent::new(ContentStyle::new(), ' ');
-                // cell = self.render_board(x as u16, y as u16)?.unwrap_or(cell);
-                // cell = self.render_tetromino(game, x as u16, y as u16)?.unwrap_or(cell);
-                // cell = text_map.get(&(x as usize, y as usize)).unwrap_or(&cell).clone();
                 let cell = text_map
                     .get(&(x as u16, y as u16))
                     .cloned()
-                    .or_else(|| self.render_tetromino(game, x as u16, y as u16).ok().flatten())
-                    .or_else(|| self.render_board(x as u16, y as u16).ok().flatten())
-                    .unwrap_or_else(|| StyledContent::new(ContentStyle::new(), ' '));
+                    .or(self.render_tetromino(game, x as u16, y as u16).ok().flatten())
+                    .or(self.render_board(x as u16, y as u16).ok().flatten())
+                    .unwrap_or(StyledContent::new(ContentStyle::new(), ' '));
                 row.push(cell);
             }
             frame.push(row);
         }
         Ok(frame)
     }
-    // pub fn construct_frame(&self, game: &Game) -> Result<Vec<Vec<StyledContent<char>>>> {
-    //     let text_map = self.init_text_overlays(game);
-    //     let width = self.terminal_size.0 as usize;
-    //     let height = self.terminal_size.1 as usize;
-    //
-    //     let frame: Vec<Vec<StyledContent<char>>> = (0..height)
-    //         .into_par_iter()
-    //         .map(|y| {
-    //             (0..width).map(|x| {
-    //                 text_map
-    //                         .get(&(x, y))
-    //                         .cloned()
-    //                         .or_else(|| self.render_tetromino(game, x as u16, y as u16).ok().flatten())
-    //                         .or_else(|| self.render_board(x as u16, y as u16).ok().flatten())
-    //                         .unwrap_or_else(|| StyledContent::new(ContentStyle::new(), ' '))
-    //             }).collect()
-    //         }).collect();
-    //     Ok(frame)
-    // }
 
     pub fn render(&mut self, game: &Game, rtt: u128) -> Result<()> {
         let frame = self.construct_frame(game, rtt)?;
-        // for (i, row) in frame.iter().enumerate() {
-        //     for (j, c) in row.iter().enumerate() {
-        //         stdout()
-        //             .queue(MoveTo(j as u16, i as u16))?
-        //             .queue(PrintStyledContent(*c))?;
-        //     }
-        // }
-        // for (i, row) in frame.iter().enumerate() {
-        //     stdout().queue(MoveTo(0, i as u16))?;
-        //     let line: String = row.iter().map(|c| format!("{}{}", c.style(), c.content())).collect(); // extract chars or styled strings combined
-        //     stdout().queue(Print(line))?;
-        // }
 
         // let mut buf = String::new();
         // for (i, row) in frame.iter().enumerate() {
@@ -249,25 +213,15 @@ impl Display {
         for (i, row) in frame.iter().enumerate() {
             self.stdout.queue(MoveTo(0, i as u16))?;
 
-            // let mut line = String::new();
             let mut buf = String::new();
             for cell in row {
-                write!(&mut buf, "{}", cell).unwrap(); // includes styling
+                write!(&mut buf, "{}", cell).unwrap();
             }
             self.stdout.write_all(buf.as_bytes())?;
         }
 
         self.frame_count += *config::DISPLAY_FRAME_RATE as u64;
         Ok(())
-    }
-
-    fn tetromino_at_position(&self, tetromino: &Tetromino, pos: &Dimension, i: usize) -> bool {
-        tetromino.geometry.shape.iter().any(|(x, y)| {
-            self.board_y.1 as i32 - y - 2 == pos.1 && (
-                self.board_x[i].0 as i32 + (x + 1) * 2 == pos.0 ||
-                self.board_x[i].0 as i32 + (x + 1) * 2 == pos.0 + 1
-            )
-        })
     }
 
     fn render_board(&self, x: u16, y: u16) -> Result<Option<StyledContent<char>>> {
@@ -303,17 +257,15 @@ impl Display {
     fn render_tetromino(&self, game: &Game, x: u16, y: u16) -> Result<Option<StyledContent<char>>> {
         let mut content = None;
 
-        let pos = &(x as i32, y as i32);
-
         for (i, board_x) in self.board_x.iter().enumerate() {
             if x > board_x.0 && x < board_x.1 - 1 && y > self.board_y.0 && y < self.board_y.1 - 1 {
                 if let Some(ghost) = &game.players[i].ghost {
-                    if self.tetromino_at_position(ghost, pos, i) {
+                    if ghost.at_pos(x, self.board_y.1 - y - 2, board_x.0, 0) {
                         content = Some('░'.with(game.players[i].falling.color));
                     }
                 }
 
-                if self.tetromino_at_position(&game.players[i].falling, pos, i) {
+                if game.players[i].falling.at_pos(x, self.board_y.1 - y - 2, board_x.0, 0) {
                     content = Some(if game.players[i].locking {
                         '▓'.with(game.players[i].falling.color)
                     } else {
@@ -331,60 +283,22 @@ impl Display {
                         ' '.on(color)
                     })
                 }
+
+            }
+            if let Some(holding) = &game.players[i].holding {
+                if holding.at_pos(x, y, board_x.0 - 11, 4) {
+                    content = Some(' '.on(holding.color));
+                }
+            }
+            for (i, next) in game.players[i].bag.next.iter().enumerate() {
+                if next.at_pos(x, y, board_x.1, ((i as u16 + 1) * 3) + 1) {
+                    content = Some(' '.on(next.color));
+                }
             }
         }
 
         Ok(content)
     }
-
-    // fn render_hold(&mut self, game: &Game) -> Result<&mut Self> {
-    //     for (i, board_x) in self.board_x.iter().enumerate() {
-    //         if let Some(holding) = &game.players[i].holding {
-    //             if self.prev_hold == Some(holding.variant) {
-    //                 return Ok(self)
-    //             }
-    //             self.prev_hold = Some(holding.variant);
-    //
-    //             self.stdout
-    //                 .queue(MoveTo(board_x.0 - 10, 4))?
-    //                 // .queue(Print(CLEAR))?
-    //                 .queue(MoveTo(board_x.0 - 10, 5))?;
-    //                 // .queue(Print(CLEAR))?;
-    //             for position in holding.geometry.shape.iter().map(|&(x, y)| (x as u16, y as u16)) {
-    //                 self.stdout
-    //                     .queue(MoveTo((position.0 - 3) * 2 + board_x.0 - 10, self.board_y.1 - position.1 + 1))?
-    //                     .queue(PrintStyledContent(" ".on(holding.color)))?
-    //                     .queue(MoveTo((position.0 - 3) * 2 + board_x.0 - 9, self.board_y.1 - position.1 + 1))?
-    //                     .queue(PrintStyledContent(" ".on(holding.color)))?;
-    //             }
-    //         }
-    //     }
-    //     Ok(self)
-    // }
-    //
-    // fn render_next(&mut self, game: &Game) -> Result<&mut Self> {
-    //     for (i, board_x) in self.board_x.iter().enumerate() {
-    //         if let Some(next) = &game.players[i].next.get(0) {
-    //             if self.prev_next == Some(next.variant) {
-    //                 return Ok(self)
-    //             }
-    //             self.prev_next = Some(next.variant);
-    //         }
-    //         for (i, tetromino) in game.players[i].next.iter().enumerate() {
-    //             self.stdout
-    //                 .queue(MoveTo(board_x.1 + 1, 4 + (i as u16 * 3)))?
-    //                 .queue(MoveTo(board_x.1 + 1, 5 + (i as u16 * 3)))?;
-    //             for position in tetromino.geometry.shape.iter().map(|&(x, y)| (x as u16, y as u16)) {
-    //                 self.stdout
-    //                     .queue(MoveTo((position.0 - 3) * 2 + board_x.1 + 2, self.board_y.1 - position.1 + 1 + (i as u16 * 3)))?
-    //                     .queue(PrintStyledContent(" ".on(tetromino.color)))?
-    //                     .queue(MoveTo((position.0 - 3) * 2 + board_x.1 + 1, self.board_y.1 - position.1 + 1 + (i as u16 * 3)))?
-    //                     .queue(PrintStyledContent(" ".on(tetromino.color)))?;
-    //             }
-    //         }
-    //     }
-    //     Ok(self)
-    // }
 
     pub fn calc_fps(&mut self) {
         self.fps = self.frame_count;
