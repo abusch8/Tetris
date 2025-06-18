@@ -57,7 +57,7 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
                 game.players.remote.as_mut().unwrap().drop(&mut lock_delay);
             },
             _ = display.render_interval.tick() => {
-                display.render(game, rtt)?;
+                display.render(game, conn_kind, rtt)?;
             },
             _ = display.frame_count_interval.tick(), if *config::DISPLAY_FRAME_RATE => {
                 display.calc_fps();

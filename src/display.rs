@@ -5,7 +5,7 @@ use crossterm::{
 use tokio::time::{interval, Interval};
 use std::fmt::Write as FmtWrite;
 
-use crate::{color::{linear_gradient, radio_spectrum_gradient}, config, debug, game::Game};
+use crate::{color::{linear_gradient, radio_spectrum_gradient}, config, conn::ConnKind, debug, game::Game};
 
 pub type Dimension = (i32, i32);
 
@@ -43,7 +43,7 @@ impl Display {
         return text_map;
     }
 
-    fn init_text_overlays(&self, game: &Game, rtt: u128) -> HashMap<(u16, u16), StyledContent<char>> {
+    fn init_text_overlays(&self, game: &Game, conn_kind: ConnKind, rtt: u128) -> HashMap<(u16, u16), StyledContent<char>> {
         let mut text_overlays = Vec::new();
 
         for (i, board_x) in self.board_x.iter().enumerate() {
@@ -86,30 +86,38 @@ impl Display {
                     content: format!("LINES: {}", game.players[i].score.lines),
                     style: ContentStyle::new(),
                 },
-            ])
+            ]);
         }
-        text_overlays.extend([
-            TextOverlay {
-                x: 0,
-                y: 0,
-                content: format!("{} fps", self.fps),
-                style: ContentStyle::new(),
-            },
-            TextOverlay {
-                x: 0,
-                y: 1,
-                content: format!("{} ms", rtt),
-                style: ContentStyle::new(),
-            },
-        ]);
+        if *config::DISPLAY_FRAME_RATE {
+            text_overlays.push(
+                TextOverlay {
+                    x: 0,
+                    y: 0,
+                    content: format!("{} fps", self.fps),
+                    style: ContentStyle::new(),
+                }
+            );
+        }
+        if *config::DISPLAY_PING && conn_kind.is_multiplayer() {
+            text_overlays.push(
+                TextOverlay {
+                    x: 0,
+                    y: *config::DISPLAY_FRAME_RATE as u16,
+                    content: format!("{} ms", rtt),
+                    style: ContentStyle::new(),
+                }
+            );
+        }
         if let Some(debugger) = &*debug::DEBUGGER.read().unwrap() {
             for i in 0..min(6, debugger.log.len()) {
-                text_overlays.push(TextOverlay {
-                    x: 0,
-                    y: self.terminal_size.1 - i as u16 - 1,
-                    content: debugger.log[debugger.log.len() - i - 1].to_string(),
-                    style: ContentStyle::new(),
-                });
+                text_overlays.push(
+                    TextOverlay {
+                        x: 0,
+                        y: self.terminal_size.1 - i as u16 - 1,
+                        content: debugger.log[debugger.log.len() - i - 1].to_string(),
+                        style: ContentStyle::new(),
+                    }
+                );
             }
         }
 
@@ -174,8 +182,8 @@ impl Display {
         Ok(())
     }
 
-    pub fn construct_frame(&self, game: &Game, rtt: u128) -> Vec<Vec<StyledContent<char>>> {
-        let text_map = self.init_text_overlays(game, rtt);
+    pub fn construct_frame(&self, game: &Game, conn_kind: ConnKind, rtt: u128) -> Vec<Vec<StyledContent<char>>> {
+        let text_map = self.init_text_overlays(game, conn_kind, rtt);
         let width = self.terminal_size.0 as usize;
         let height = self.terminal_size.1 as usize;
         let mut frame = Vec::with_capacity(height);
@@ -195,8 +203,8 @@ impl Display {
         frame
     }
 
-    pub fn render(&mut self, game: &Game, rtt: u128) -> Result<()> {
-        let frame = self.construct_frame(game, rtt);
+    pub fn render(&mut self, game: &Game, conn_kind: ConnKind, rtt: u128) -> Result<()> {
+        let frame = self.construct_frame(game, conn_kind, rtt);
 
         for (i, row) in frame.iter().enumerate() {
             self.stdout.queue(MoveTo(0, i as u16))?;
