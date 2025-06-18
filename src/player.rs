@@ -191,6 +191,9 @@ impl Player {
             }
         }
         self.clearing = clearing;
+        if self.clearing.is_empty() {
+            self.score.combo = -1;
+        }
     }
 
     pub fn line_clear(&mut self) {
@@ -206,13 +209,9 @@ impl Player {
 
         self.stack.extend(vec![vec![None; BOARD_DIMENSION.0 as usize]; num_cleared as usize]);
 
-        if num_cleared > 0 {
-            self.score.score_clear(num_cleared, &self.stack);
-            self.update_ghost();
-            self.drop_interval = Player::calc_drop_interval(self.score.level);
-        } else {
-            self.score.combo = -1;
-        }
+        self.score.score_clear(num_cleared, &self.stack);
+        self.update_ghost();
+        self.drop_interval = Player::calc_drop_interval(self.score.level);
 
         self.clearing.clear();
     }

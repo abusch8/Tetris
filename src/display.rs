@@ -47,6 +47,8 @@ impl Display {
         let mut text_overlays = Vec::new();
 
         for (i, board_x) in self.board_x.iter().enumerate() {
+            let combo = game.players[i].score.combo;
+            let combo_text = if combo > 0 { format!("x{}", combo) } else { "".into() };
             text_overlays.extend([
                 TextOverlay {
                     x: board_x.0 + (board_x.1 - board_x.0) / 2 - 3,
@@ -69,7 +71,7 @@ impl Display {
                 TextOverlay {
                     x: board_x.1 + 1,
                     y: 17,
-                    content: format!("SCORE: {}", game.players[i].score.score),
+                    content: format!("SCORE: {} {}", game.players[i].score.score, combo_text),
                     style: ContentStyle::new(),
                 },
                 TextOverlay {
@@ -184,7 +186,7 @@ impl Display {
                     .get(&(x as u16, y as u16))
                     .cloned()
                     .or(self.render_tetromino(game, x as u16, y as u16).ok().flatten())
-                    .or(self.render_board(x as u16, y as u16).ok().flatten())
+                    .or(self.render_board(game, x as u16, y as u16).ok().flatten())
                     .unwrap_or(StyledContent::new(ContentStyle::new(), ' '));
                 row.push(cell);
             }
@@ -224,12 +226,33 @@ impl Display {
         Ok(())
     }
 
-    fn render_board(&self, x: u16, y: u16) -> Result<Option<StyledContent<char>>> {
+    fn linear_gradient(index: u16, steps: u16, start: (u8, u8, u8), end: (u8, u8, u8)) -> Color  {
+        // let t = index as f32 / (steps.saturating_sub(1).max(1)) as f32;
+        let half = steps as f32 / 2.0;
+        let i = index as f32;
+        let t = if i <= half {
+            i / half
+        } else {
+            (steps as f32 - 1.0 - i) / half
+        };
+        let r = (start.0 as f32 + t * (end.0 as f32 - start.0 as f32)).round() as u8;
+        let g = (start.1 as f32 + t * (end.1 as f32 - start.1 as f32)).round() as u8;
+        let b = (start.2 as f32 + t * (end.2 as f32 - start.2 as f32)).round() as u8;
+        Color::Rgb { r, g, b }
+    }
+
+    fn render_board(&self, game: &Game, x: u16, y: u16) -> Result<Option<StyledContent<char>>> {
         let mut content = None;
 
-        for board_x in self.board_x.iter() {
+        for (i, board_x) in self.board_x.iter().enumerate() {
+            let board_color = if game.players[i].score.combo >= 0 {
+                let time = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() / 30;
+                Display::linear_gradient(((y as u128 + time) % 40) as u16, 40, (255, 255, 255), (0, 183, 235))
+            } else {
+                Color::White
+            };
             if x >= board_x.0 && x <= board_x.1 - 1 && y >= self.board_y.0 && y <= self.board_y.1 - 1 {
-                content = Some(StyledContent::new(ContentStyle::new(),
+                content = Some(
                     if x == board_x.0 && y == 0 {
                         '╔'
                     } else if x == board_x.0 && y == self.board_y.1 - 1 {
@@ -246,8 +269,9 @@ impl Display {
                         '.'
                     } else {
                         ' '
-                    }
-                ));
+                    // }.with(Display::linear_gradient((y + time as u16) % 40, 40, (255, 0, 0), (0, 0, 255)))
+                    }.with(board_color)
+                );
             }
         }
 
@@ -283,7 +307,6 @@ impl Display {
                         ' '.on(color)
                     })
                 }
-
             }
             if let Some(holding) = &game.players[i].holding {
                 if holding.at_pos(x, y, board_x.0 - 11, 4) {
