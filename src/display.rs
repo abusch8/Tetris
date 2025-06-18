@@ -230,7 +230,7 @@ impl Display {
         for (i, board_x) in self.board_x.iter().enumerate() {
             if x >= board_x.0 && x <= board_x.1 - 1 && y >= self.board_y.0 && y <= self.board_y.1 - 1 {
                 let board_color = if *config::PARTY_MODE {
-                    radio_spectrum_gradient(((y as u128 + time_index()) as u16) % 160, 160)
+                    radio_spectrum_gradient(((y as u128 + time_index()) % 160) as u16, 160)
                 } else if game.players[i].score.combo >= 0 {
                     linear_gradient(((y as u128 + time_index()) % 40) as u16, 40, (255, 255, 255), (0, 183, 235))
                 } else {
