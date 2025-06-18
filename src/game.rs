@@ -1,7 +1,7 @@
 use std::{io::Result, ops::Index};
 use rand::{thread_rng, Rng};
 
-use crate::{conn::{ConnKind, ConnTrait, TcpPacketMode}, debug_log, player::{Player, PlayerKind}};
+use crate::{conn::{ConnKind, ConnTrait, TcpPacketMode}, player::{Player, PlayerKind}};
 
 pub struct Players {
     pub local: Player,

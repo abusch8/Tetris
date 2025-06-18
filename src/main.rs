@@ -2,15 +2,16 @@ use std::io::{stdout, Result};
 use crossterm::{
     cursor::{Hide, Show},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetTitle},
+    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, SetTitle},
 };
 use clap::Parser;
 
 use crate::{conn::ConnKind, run::run};
 
-mod debug;
+mod color;
 mod config;
 mod conn;
+mod debug;
 mod display;
 mod event;
 mod game;
@@ -34,17 +35,19 @@ pub struct Cli {
     #[arg(long, default_value_t = 1)]
     start_level: u32,
     #[arg(long)]
+    party: bool,
+    #[arg(long)]
     debug: bool,
 }
 
 pub fn enter_tui_mode() -> Result<()> {
-    execute!(stdout(), Hide, Clear(ClearType::All), SetTitle("TETRIS"))?; // EnterAlternateScreen,
+    execute!(stdout(), Hide, Clear(ClearType::All), SetTitle("TETRIS"))?;
     enable_raw_mode()?;
     Ok(())
 }
 
 pub fn exit_tui_mode() -> Result<()> {
-    execute!(stdout(), Show, Clear(ClearType::All))?; // , LeaveAlternateScreen
+    execute!(stdout(), Show, Clear(ClearType::All))?;
     disable_raw_mode()?;
     Ok(())
 }

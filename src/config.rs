@@ -29,6 +29,11 @@ lazy_static! {
         .parse()
         .unwrap_or_else(|_| panic!("Invalid display_frame_rate display config value"));
 
+    pub static ref PARTY_MODE: bool = CLI.party || CONFIG
+        .get_from_or(Some("display"), "party_mode", "false")
+        .parse()
+        .unwrap_or_else(|_| panic!("Invalid party_mode display config value"));
+
     pub static ref DISPLAY_PING: bool = CONFIG
         .get_from_or(Some("multiplayer"), "display_ping", "false")
         .parse()

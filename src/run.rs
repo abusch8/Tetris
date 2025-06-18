@@ -3,7 +3,7 @@ use crossterm::event::EventStream;
 use futures::{FutureExt, stream::StreamExt};
 use tokio::{pin, select, time::{interval, sleep, Duration}};
 
-use crate::{config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, debug_log, display::Display, event::handle_game_event, game::Game, tetromino::Geometry};
+use crate::{config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, tetromino::Geometry};
 
 pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
     let mut reader = EventStream::new();
