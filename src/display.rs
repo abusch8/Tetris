@@ -5,7 +5,7 @@ use crossterm::{
 use tokio::time::{interval, Interval};
 use std::fmt::Write as FmtWrite;
 
-use crate::{color::get_board_color, config, conn::ConnKind, debug, game::Game};
+use crate::{color::get_board_color, config, debug, game::Game};
 
 pub type Dimension = (i32, i32);
 
@@ -43,7 +43,7 @@ impl Display {
         return text_map;
     }
 
-    fn init_text_overlays(&self, game: &Game, conn_kind: ConnKind, rtt: u128) -> HashMap<(u16, u16), StyledContent<char>> {
+    fn init_text_overlays(&self, game: &Game, rtt: u128) -> HashMap<(u16, u16), StyledContent<char>> {
         let mut text_overlays = Vec::new();
 
         for (i, board_x) in self.board_x.iter().enumerate() {
@@ -100,7 +100,7 @@ impl Display {
                 }
             );
         }
-        if *config::DISPLAY_PING && conn_kind.is_multiplayer() {
+        if *config::DISPLAY_PING && self.is_multiplayer {
             text_overlays.push(
                 TextOverlay {
                     x: 0,
@@ -184,8 +184,8 @@ impl Display {
         Ok(())
     }
 
-    pub fn construct_frame(&self, game: &Game, conn_kind: ConnKind, rtt: u128) -> Vec<Vec<StyledContent<char>>> {
-        let text_map = self.init_text_overlays(game, conn_kind, rtt);
+    pub fn construct_frame(&self, game: &Game, rtt: u128) -> Vec<Vec<StyledContent<char>>> {
+        let text_map = self.init_text_overlays(game, rtt);
         let width = self.terminal_size.0 as usize;
         let height = self.terminal_size.1 as usize;
         let mut frame = Vec::with_capacity(height);
@@ -205,8 +205,8 @@ impl Display {
         frame
     }
 
-    pub fn render(&mut self, game: &Game, conn_kind: ConnKind, rtt: u128) -> Result<()> {
-        let frame = self.construct_frame(game, conn_kind, rtt);
+    pub fn render(&mut self, game: &Game, rtt: u128) -> Result<()> {
+        let frame = self.construct_frame(game, rtt);
 
         for (i, row) in frame.iter().enumerate() {
             self.stdout.queue(MoveTo(0, i as u16))?;

@@ -61,7 +61,7 @@ pub fn get_board_color(player: &Player, y: u16) -> Color {
         SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() / 30
     }
     if *config::PARTY_MODE {
-        radio_spectrum_gradient(((y as u128 + time_index()) as u16) % 160, 160)
+        radio_spectrum_gradient(((y as u128 + time_index()) % 160) as u16, 160)
     } else if player.score.combo >= 0 {
         linear_gradient(((y as u128 + time_index()) % 40) as u16, 40, (255, 255, 255), (0, 183, 235))
     } else {
