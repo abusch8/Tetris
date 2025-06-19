@@ -142,7 +142,7 @@ impl Player {
         let mut bag = Bag::new(seed);
         let stack = vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize];
         let mut falling = bag.get_next();
-        falling.init_transform(&stack);
+        falling.start_pos_transform(&stack);
         Player {
             kind,
             falling,
@@ -339,7 +339,7 @@ impl Player {
         }
 
         let mut falling = self.bag.get_next();
-        falling.init_transform(&self.stack);
+        falling.start_pos_transform(&self.stack);
 
         self.falling = falling;
         self.locking = false;
@@ -355,7 +355,7 @@ impl Player {
     pub async fn hold(&mut self, conn: &Box<dyn ConnTrait>) -> Result<()> {
         if self.can_hold {
             let mut swap = self.holding.clone().unwrap_or(self.bag.get_next());
-            swap.init_transform(&self.stack);
+            swap.start_pos_transform(&self.stack);
 
             let tetromino = Tetromino::new(self.falling.variant);
             self.holding = Some(tetromino);

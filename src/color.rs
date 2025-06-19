@@ -1,7 +1,7 @@
 use std::time::SystemTime;
 use crossterm::style::Color;
 
-use crate::{config, game::Game, player::Player};
+use crate::{config, player::Player};
 
 fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (u8, u8, u8) {
     let c = v * s;

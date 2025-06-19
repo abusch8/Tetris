@@ -173,7 +173,7 @@ impl Tetromino {
         }
     }
 
-    pub fn init_transform(&mut self, stack: &Stack) {
+    pub fn start_pos_transform(&mut self, stack: &Stack) {
         self.geometry.transform(3, 18);
         for i in 17..20 {
             if stack[i].iter().any(|block| block.is_some()) {

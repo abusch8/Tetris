@@ -1,4 +1,4 @@
-use std::{cmp::min, collections::HashMap, io::{stdout, Result, Stdout, Write}, time::{Duration, SystemTime}};
+use std::{cmp::min, collections::HashMap, io::{stdout, Result, Stdout, Write}, time::Duration};
 use crossterm::{
     cursor::MoveTo, style::{Attribute, Color, ContentStyle, StyledContent, Stylize}, terminal, QueueableCommand
 };
