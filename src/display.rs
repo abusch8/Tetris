@@ -5,7 +5,7 @@ use crossterm::{
 use tokio::time::{interval, Interval};
 use std::fmt::Write as FmtWrite;
 
-use crate::{color::{linear_gradient, radio_spectrum_gradient}, config, conn::ConnKind, debug, game::Game};
+use crate::{color::get_board_color, config, conn::ConnKind, debug, game::Game};
 
 pub type Dimension = (i32, i32);
 
@@ -54,7 +54,9 @@ impl Display {
                     x: board_x.0 + (board_x.1 - board_x.0) / 2 - 3,
                     y: 0,
                     content: String::from("TETRIS"),
-                    style: ContentStyle::new().attribute(Attribute::Bold)
+                    style: ContentStyle::new()
+                       .attribute(Attribute::Bold)
+                       .with(get_board_color(&game.players[i], 0)),
                 },
                 TextOverlay {
                     x: board_x.1 + 1,
@@ -220,22 +222,12 @@ impl Display {
         Ok(())
     }
 
+
     fn render_board(&self, game: &Game, x: u16, y: u16) -> Option<StyledContent<char>> {
         let mut content = None;
 
-        fn time_index() -> u128 {
-            SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() / 30
-        }
-
         for (i, board_x) in self.board_x.iter().enumerate() {
             if x >= board_x.0 && x <= board_x.1 - 1 && y >= self.board_y.0 && y <= self.board_y.1 - 1 {
-                let board_color = if *config::PARTY_MODE {
-                    radio_spectrum_gradient(((y as u128 + time_index()) as u16) % 160, 160)
-                } else if game.players[i].score.combo >= 0 {
-                    linear_gradient(((y as u128 + time_index()) % 40) as u16, 40, (255, 255, 255), (0, 183, 235))
-                } else {
-                    Color::White
-                };
                 content = Some(
                     if x == board_x.0 && y == 0 {
                         '╔'
@@ -253,7 +245,7 @@ impl Display {
                         '.'
                     } else {
                         ' '
-                    }.with(board_color)
+                    }.with(get_board_color(&game.players[i], y))
                 );
             }
         }

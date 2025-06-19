@@ -1,4 +1,7 @@
+use std::time::SystemTime;
 use crossterm::style::Color;
+
+use crate::{config, game::Game, player::Player};
 
 fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (u8, u8, u8) {
     let c = v * s;
@@ -22,7 +25,7 @@ fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (u8, u8, u8) {
     )
 }
 
-pub fn radio_spectrum_gradient(index: u16, steps: u16) -> Color {
+fn radio_spectrum_gradient(index: u16, steps: u16) -> Color {
     let half = steps as f32 / 2.0;
     let i = index as f32;
 
@@ -37,7 +40,7 @@ pub fn radio_spectrum_gradient(index: u16, steps: u16) -> Color {
     Color::Rgb { r, g ,b }
 }
 
-pub fn linear_gradient(index: u16, steps: u16, start: (u8, u8, u8), end: (u8, u8, u8)) -> Color  {
+fn linear_gradient(index: u16, steps: u16, start: (u8, u8, u8), end: (u8, u8, u8)) -> Color  {
     let half = steps as f32 / 2.0;
     let i = index as f32;
     let t = if i <= half {
@@ -51,5 +54,18 @@ pub fn linear_gradient(index: u16, steps: u16, start: (u8, u8, u8), end: (u8, u8
     let b = (start.2 as f32 + t * (end.2 as f32 - start.2 as f32)).round() as u8;
 
     Color::Rgb { r, g, b }
+}
+
+pub fn get_board_color(player: &Player, y: u16) -> Color {
+    fn time_index() -> u128 {
+        SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() / 30
+    }
+    if *config::PARTY_MODE {
+        radio_spectrum_gradient(((y as u128 + time_index()) as u16) % 160, 160)
+    } else if player.score.combo >= 0 {
+        linear_gradient(((y as u128 + time_index()) % 40) as u16, 40, (255, 255, 255), (0, 183, 235))
+    } else {
+        Color::White
+    }
 }
 
