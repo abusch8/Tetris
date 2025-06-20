@@ -4,6 +4,14 @@
 
 ![Preview](preview.gif)
 
+## Features
+
+- Operates entirely within a terminal
+- Accurate modern Tetris mechanics
+- Online multiplayer
+- Fully configurable controls
+- Asynchronous rendering pipeline
+
 ## Installation
 
 The project can be installed from source with the following:
