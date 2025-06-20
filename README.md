@@ -20,7 +20,7 @@ The repo is also available as a package on the AUR.  It can be installed from so
 yay -S tetris-tui-git
 ```
 
-Execute the program with `tetris [start_level]`.
+Execute the program with `tetris`.  For a list of usable command line arguments, use `tetris --help`.
 
 ## Configuration
 
@@ -43,8 +43,12 @@ I also recommend that you adjust your keyboard's repeat rate and delay.  It can 
 
 ## TODO
 
-- Leaderboard
+- Scoreboard
+- Main menu
+- Game over screen
 - T-Spin scoring
 - Fix soft drop scoring accuracy
 - Prevent infinity
+- Multiplayer garbage system
+- Multiplayer AI opponents
 
