@@ -2,7 +2,7 @@
 
 ### Modern Tetris TUI written in Rust 🦀
 
-![Preview](preview.png)
+![Preview](preview.gif)
 
 ## Installation
 
