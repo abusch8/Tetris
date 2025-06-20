@@ -3,11 +3,6 @@ use rand::{thread_rng, Rng};
 
 use crate::{conn::{ConnKind, ConnTrait, TcpPacketMode}, player::{Player, PlayerKind}};
 
-pub struct Players {
-    pub local: Player,
-    pub remote: Option<Player>,
-}
-
 pub struct Game {
     pub players: Players,
 }
@@ -15,6 +10,11 @@ pub struct Game {
 pub struct GameInfo {
     pub start_level: u32,
     pub seeds: Vec<u64>,
+}
+
+pub struct Players {
+    pub local: Player,
+    pub remote: Option<Player>,
 }
 
 impl Index<usize> for Players {
