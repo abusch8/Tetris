@@ -3,9 +3,9 @@ use crossterm::event::EventStream;
 use futures::{FutureExt, stream::StreamExt};
 use tokio::{pin, select, time::{interval, sleep, Duration}};
 
-use crate::{config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, tetromino::Geometry};
+use crate::{config, conn::{Conn, ConnType, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, tetromino::Geometry};
 
-pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
+pub async fn run(conn_kind: ConnType, start_level: u32) -> Result<()> {
     let mut reader = EventStream::new();
 
     let display = &mut Display::new(conn_kind.is_multiplayer())?;
@@ -40,13 +40,17 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
             _ = &mut line_clear_delay_local, if (
                 game.players.local.clearing.len() > 0
             ) => {
-                game.players.local.line_clear();
+                let clear_type = game.players.local.line_clear();
+                if conn_kind.is_multiplayer() {
+                    game.players.remote.as_mut().unwrap().add_garbage(clear_type);
+                }
             },
             _ = &mut line_clear_delay_remote, if (
                 conn_kind.is_multiplayer() &&
                 game.players.remote.as_mut().unwrap().clearing.len() > 0
             ) => {
-                game.players.remote.as_mut().unwrap().line_clear();
+                let clear_type = game.players.remote.as_mut().unwrap().line_clear();
+                game.players.local.add_garbage(clear_type);
             },
             _ = game.players.local.drop_interval.tick() => {
                 game.players.local.drop(&mut lock_delay);

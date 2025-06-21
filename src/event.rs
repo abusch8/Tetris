@@ -5,7 +5,7 @@ use tokio::time::Sleep;
 use crate::{config, conn::ConnTrait, display::Display, exit_tui_mode, game::Game, player::ShiftDirection, tetromino::RotationDirection};
 
 #[derive(Clone)]
-pub enum Action {
+pub enum InputAction {
     MoveRight,
     MoveLeft,
     RotateRight,
@@ -28,7 +28,7 @@ pub async fn handle_game_event(
         Event::Key(KeyEvent { kind, code, .. }) => {
             if kind == KeyEventKind::Press {
                 match config::controls::ACTION_MAP.get(&code) {
-                    Some(Action::MoveRight) => {
+                    Some(InputAction::MoveRight) => {
                         game.players.local.shift(
                             ShiftDirection::Right,
                             lock_delay,
@@ -36,7 +36,7 @@ pub async fn handle_game_event(
                             conn,
                         ).await?;
                     },
-                    Some(Action::MoveLeft) => {
+                    Some(InputAction::MoveLeft) => {
                         game.players.local.shift(
                             ShiftDirection::Left,
                             lock_delay,
@@ -44,38 +44,38 @@ pub async fn handle_game_event(
                             conn,
                         ).await?;
                     },
-                    Some(Action::RotateRight) => {
+                    Some(InputAction::RotateRight) => {
                         game.players.local.rotate(
                             RotationDirection::Clockwise,
                             lock_delay,
                             conn,
                         ).await?;
                     },
-                    Some(Action::RotateLeft) => {
+                    Some(InputAction::RotateLeft) => {
                         game.players.local.rotate(
                             RotationDirection::CounterClockwise,
                             lock_delay,
                             conn,
                         ).await?;
                     },
-                    Some(Action::SoftDrop) => {
+                    Some(InputAction::SoftDrop) => {
                         game.players.local.soft_drop(
                             lock_delay,
                             conn,
                         ).await?;
                     },
-                    Some(Action::HardDrop) => {
+                    Some(InputAction::HardDrop) => {
                         game.players.local.hard_drop(
                             line_clear_delay,
                             conn,
                         ).await?;
                     },
-                    Some(Action::Hold) => {
+                    Some(InputAction::Hold) => {
                         game.players.local.hold(
                             conn,
                         ).await?;
                     },
-                    Some(Action::Quit) => {
+                    Some(InputAction::Quit) => {
                         game.players.local.lost = true;
                     },
                     None => (),
@@ -92,7 +92,7 @@ pub fn handle_conn_event(event: Event, display: &mut Display) -> Result<()> {
         Event::Key(KeyEvent { kind, code, .. }) => {
             if kind == KeyEventKind::Press {
                 match config::controls::ACTION_MAP.get(&code) {
-                    Some(Action::Quit) => {
+                    Some(InputAction::Quit) => {
                         exit_tui_mode()?;
                         exit(0);
                     },

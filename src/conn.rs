@@ -23,30 +23,29 @@ pub enum TcpPacketMode {
 }
 
 #[derive(Clone, Copy)]
-pub enum ConnKind {
+pub enum ConnType {
     Host,
     Client,
     Empty,
 }
 
-impl ConnKind {
+impl ConnType {
     pub fn from_args(is_host: bool, is_client: bool) -> Self {
         match (is_host, is_client) {
             (true,  true ) |
-            (true,  false) => ConnKind::Host,
-            (false, true ) => ConnKind::Client,
-            (false, false) => ConnKind::Empty,
+            (true,  false) => ConnType::Host,
+            (false, true ) => ConnType::Client,
+            (false, false) => ConnType::Empty,
         }
     }
 
-    pub fn is_multiplayer(&self) -> bool {
-        return matches!(self, ConnKind::Host) || matches!(self, ConnKind::Client);
+    pub fn is_multiplayer(self) -> bool {
+        matches!(self, ConnType::Host | ConnType::Client)
     }
 
-    pub fn is_host(&self) -> bool {
-        return matches!(self, ConnKind::Host) || matches!(self, ConnKind::Empty);
-    }
-}
+    pub fn is_host(self) -> bool {
+        matches!(self, ConnType::Host | ConnType::Empty)
+    }}
 
 #[async_trait]
 pub trait ConnTrait {
@@ -108,9 +107,9 @@ impl Conn {
         Ok(udp_socket)
     }
 
-    pub async fn establish_connection(conn_kind: ConnKind, display: &mut Display) -> Result<Box<dyn ConnTrait>> {
+    pub async fn establish_connection(conn_kind: ConnType, display: &mut Display) -> Result<Box<dyn ConnTrait>> {
         match conn_kind {
-            ConnKind::Host => {
+            ConnType::Host => {
                 let bind_addr = *config::BIND_ADDR;
 
                 let (tcp_stream, peer_addr) = Conn::tcp_listen(bind_addr, display).await?;
@@ -120,7 +119,7 @@ impl Conn {
 
                 Ok(Box::new(Conn { udp_socket, tcp_stream }))
             },
-            ConnKind::Client => {
+            ConnType::Client => {
                 let peer_addr = *config::CONN_ADDR;
 
                 let (tcp_stream, bind_addr) = Conn::tcp_connect(peer_addr, display).await?;
@@ -130,7 +129,7 @@ impl Conn {
 
                 Ok(Box::new(Conn { udp_socket, tcp_stream }))
             },
-            ConnKind::Empty => Ok(Box::new(DummyConn)),
+            ConnType::Empty => Ok(Box::new(DummyConn)),
         }
     }
 

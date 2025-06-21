@@ -1,7 +1,7 @@
 use std::{io::Result, ops::Index};
 use rand::{thread_rng, Rng};
 
-use crate::{conn::{ConnKind, ConnTrait, TcpPacketMode}, player::{Player, PlayerKind}};
+use crate::{conn::{ConnType, ConnTrait, TcpPacketMode}, player::{Player, PlayerType}};
 
 pub struct Game {
     pub players: Players,
@@ -30,14 +30,14 @@ impl Index<usize> for Players {
 }
 
 impl Game {
-    pub async fn start(conn_kind: ConnKind, start_level: u32, conn: &mut Box<dyn ConnTrait>) -> Result<Self> {
+    pub async fn start(conn_kind: ConnType, start_level: u32, conn: &mut Box<dyn ConnTrait>) -> Result<Self> {
         let seed_idx = conn_kind.is_host() as usize;
 
         let GameInfo { start_level, seeds } = GameInfo::sync(start_level, conn_kind, conn).await?;
 
-        let local = Player::new(PlayerKind::Local, start_level, seeds[seed_idx ^ 1]);
+        let local = Player::new(PlayerType::Local, start_level, seeds[seed_idx ^ 1]);
         let remote = if conn_kind.is_multiplayer() {
-            Some(Player::new(PlayerKind::Remote, start_level, seeds[seed_idx]))
+            Some(Player::new(PlayerType::Remote, start_level, seeds[seed_idx]))
         } else {
             None
         };
@@ -73,16 +73,16 @@ impl GameInfo {
         GameInfo { start_level, seeds: vec![p1_seed, p2_seed] }
     }
 
-    async fn sync(start_level: u32, conn_kind: ConnKind, conn: &Box<dyn ConnTrait>) -> Result<GameInfo> {
+    async fn sync(start_level: u32, conn_kind: ConnType, conn: &Box<dyn ConnTrait>) -> Result<GameInfo> {
         match conn_kind {
-            ConnKind::Host => {
+            ConnType::Host => {
                 let p1_seed = thread_rng().gen::<u64>();
                 let p2_seed = thread_rng().gen::<u64>();
                 let game_info = GameInfo { start_level, seeds: vec![p1_seed, p2_seed] };
                 conn.send_info(&game_info).await?;
                 Ok(game_info)
             },
-            ConnKind::Client => {
+            ConnType::Client => {
                 loop {
                     let (mode, payload) = conn.recv_tcp().await?;
                     match mode {
@@ -91,7 +91,7 @@ impl GameInfo {
                     }
                 }
             },
-            ConnKind::Empty => {
+            ConnType::Empty => {
                 let seed = thread_rng().gen::<u64>();
                 Ok(GameInfo { start_level, seeds: vec![seed] })
             },

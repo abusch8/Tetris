@@ -60,9 +60,9 @@ pub mod controls {
     use crossterm::event::KeyCode;
     use lazy_static::lazy_static;
 
-    use crate::{config::CONFIG, event::Action};
+    use crate::{config::CONFIG, event::InputAction};
 
-    fn key_map(key: &str, action: Action) -> HashMap<KeyCode, Action> {
+    fn key_map(key: &str, action: InputAction) -> HashMap<KeyCode, InputAction> {
         let mut action_map = HashMap::new();
         match key {
             key if key.len() == 1 && key.is_ascii() => {
@@ -94,7 +94,7 @@ pub mod controls {
     }
 
     lazy_static! {
-        pub static ref ACTION_MAP: HashMap<KeyCode, Action> = {
+        pub static ref ACTION_MAP: HashMap<KeyCode, InputAction> = {
             let mut action_map = HashMap::new();
 
             action_map.extend(CONFIG
@@ -102,56 +102,56 @@ pub mod controls {
                 .to_string()
                 .split(',')
                 .map(str::trim)
-                .flat_map(|key| key_map(key, Action::MoveRight)));
+                .flat_map(|key| key_map(key, InputAction::MoveRight)));
 
             action_map.extend(CONFIG
                 .get_from_or(Some("controls"), "move_left", "left, a")
                 .to_string()
                 .split(',')
                 .map(str::trim)
-                .flat_map(|key| key_map(key, Action::MoveLeft)));
+                .flat_map(|key| key_map(key, InputAction::MoveLeft)));
 
             action_map.extend(CONFIG
                 .get_from_or(Some("controls"), "rotate_right", "up, w")
                 .to_string()
                 .split(',')
                 .map(str::trim)
-                .flat_map(|key| key_map(key, Action::RotateRight)));
+                .flat_map(|key| key_map(key, InputAction::RotateRight)));
 
             action_map.extend(CONFIG
                 .get_from_or(Some("controls"), "rotate_left", "z")
                 .to_string()
                 .split(',')
                 .map(str::trim)
-                .flat_map(|key| key_map(key, Action::RotateLeft)));
+                .flat_map(|key| key_map(key, InputAction::RotateLeft)));
 
             action_map.extend(CONFIG
                 .get_from_or(Some("controls"), "soft_drop", "down, s")
                 .to_string()
                 .split(',')
                 .map(str::trim)
-                .flat_map(|key| key_map(key, Action::SoftDrop)));
+                .flat_map(|key| key_map(key, InputAction::SoftDrop)));
 
             action_map.extend(CONFIG
                 .get_from_or(Some("controls"), "hard_drop", "space")
                 .to_string()
                 .split(',')
                 .map(str::trim)
-                .flat_map(|key| key_map(key, Action::HardDrop)));
+                .flat_map(|key| key_map(key, InputAction::HardDrop)));
 
             action_map.extend(CONFIG
                 .get_from_or(Some("controls"), "hold", "c")
                 .to_string()
                 .split(',')
                 .map(str::trim)
-                .flat_map(|key| key_map(key, Action::Hold)));
+                .flat_map(|key| key_map(key, InputAction::Hold)));
 
             action_map.extend(CONFIG
                 .get_from_or(Some("controls"), "quit", "escape, q")
                 .to_string()
                 .split(',')
                 .map(str::trim)
-                .flat_map(|key| key_map(key, Action::Quit)));
+                .flat_map(|key| key_map(key, InputAction::Quit)));
 
             action_map
         };

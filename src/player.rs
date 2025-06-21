@@ -1,11 +1,11 @@
 use std::{collections::HashSet, io::Result, mem::replace, pin::Pin, time::Duration};
 use crossterm::style::Color;
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
 use strum::IntoEnumIterator;
 use tokio::time::{interval, sleep, Interval, Sleep};
 use num_derive::FromPrimitive;
 
-use crate::{conn::ConnTrait, display::BOARD_DIMENSION, tetromino::*};
+use crate::{conn::ConnTrait, display::BOARD_DIMENSION, event::InputAction, tetromino::*};
 
 pub type Stack = Vec<Vec<Option<Color>>>;
 
@@ -39,7 +39,58 @@ static O_OFFSETS: [[(i32, i32); 5]; 4] = [
 pub enum ShiftDirection { Left, Right }
 
 #[derive(Copy, Clone)]
-pub enum PlayerKind { Local, Remote }
+pub enum PlayerType { Local, Remote }
+
+#[derive(Copy, Clone)]
+pub enum ClearType {
+    PerfectClear,
+    Single,
+    Double,
+    Triple,
+    Tetris,
+    TSpinSingle,
+    TSpinDouble,
+    TSpinTriple,
+}
+
+impl ClearType {
+    fn new(num_cleared: usize, perfect_clear: bool, is_t_spin: bool) -> Self {
+        match (num_cleared, perfect_clear, is_t_spin) {
+            (_, true, _) => ClearType::PerfectClear,
+            (1, false, false) => ClearType::Single,
+            (2, false, false) => ClearType::Double,
+            (3, false, false) => ClearType::Triple,
+            (4, false, false) => ClearType::Tetris,
+            (1, false, true) => ClearType::TSpinSingle,
+            (2, false, true) => ClearType::TSpinDouble,
+            (3, false, true) => ClearType::TSpinTriple,
+            _ => panic!("Invalid clear type")
+        }
+    }
+
+    pub fn line_clear_count(self) -> usize {
+        match self {
+            ClearType::Single | ClearType::TSpinSingle => 1,
+            ClearType::Double | ClearType::TSpinDouble => 2,
+            ClearType::Triple | ClearType::TSpinTriple => 3,
+            ClearType::Tetris => 4,
+            ClearType::PerfectClear => 4,
+        }
+    }
+
+    pub fn garbage_line_count(self) -> usize {
+        match self {
+            ClearType::Single => 0,
+            ClearType::Double => 1,
+            ClearType::Triple => 2,
+            ClearType::Tetris => 4,
+            ClearType::TSpinSingle => 2,
+            ClearType::TSpinDouble => 4,
+            ClearType::TSpinTriple => 6,
+            ClearType::PerfectClear => 10,
+        }
+    }
+}
 
 pub struct Bag {
     pub seed: StdRng,
@@ -56,7 +107,7 @@ pub struct Score {
 }
 
 pub struct Player {
-    pub kind: PlayerKind,
+    pub kind: PlayerType,
     pub falling: Tetromino,
     pub holding: Option<Tetromino>,
     pub ghost: Option<Tetromino>,
@@ -68,6 +119,7 @@ pub struct Player {
     pub lost: bool,
     pub locking: bool,
     pub lock_reset_count: u8,
+    pub last_action_was_rotate: bool,
     pub drop_interval: Interval,
 }
 
@@ -111,34 +163,36 @@ impl Score {
         }
     }
 
-    pub fn score_clear(&mut self, num_cleared: u32, stack: &Stack) {
-        let full_clear = stack.iter().flatten().all(|block| block.is_none());
-        self.lines += num_cleared;
+    pub fn score_clear(&mut self, clear_type: ClearType) {
+        let line_clear_count = clear_type.line_clear_count() as u32;
+        self.lines += line_clear_count;
         self.level = self.start_level + self.lines / 10;
         self.combo += 1;
-        self.score += if full_clear {
-            match num_cleared {
-                1 => self.level * 800,
-                2 => self.level * 1200,
-                3 => self.level * 1800,
-                4 => self.level * 2000,
-                _ => 0,
-            }
-        } else {
-            match num_cleared {
-                1 => self.level * 100,
-                2 => self.level * 300,
-                3 => self.level * 500,
-                4 => self.level * 800,
-                _ => 0,
-            }
+        self.score += match clear_type {
+            ClearType::PerfectClear => {
+                match line_clear_count {
+                    1 => self.level * 800,
+                    2 => self.level * 1200,
+                    3 => self.level * 1800,
+                    4 => self.level * 2000,
+                    _ => 0,
+                }
+            },
+            ClearType::Single => self.level * 100,
+            ClearType::Double => self.level * 300,
+            ClearType::Triple => self.level * 500,
+            ClearType::Tetris => self.level * 800,
+            ClearType::TSpinSingle => self.level * 800,
+            ClearType::TSpinDouble => self.level * 1200,
+            ClearType::TSpinTriple => self.level * 1600,
+
         };
         self.score += 50 * self.combo as u32 * self.level;
     }
 }
 
 impl Player {
-    pub fn new(kind: PlayerKind, start_level: u32, seed: u64) -> Self {
+    pub fn new(kind: PlayerType, start_level: u32, seed: u64) -> Self {
         let mut bag = Bag::new(seed);
         let stack = vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize];
         let mut falling = bag.get_next();
@@ -156,6 +210,7 @@ impl Player {
             lost: false,
             locking: false,
             lock_reset_count: 0,
+            last_action_was_rotate: false,
             drop_interval: Player::calc_drop_interval(start_level),
         }
     }
@@ -183,20 +238,43 @@ impl Player {
         };
     }
 
-    pub fn mark_clear(&mut self) {
-        let mut clearing = HashSet::new();
+    pub fn mark_clear(&mut self, line_clear_delay: &mut Pin<&mut Sleep>) {
+        self.clearing = HashSet::new();
         for (i, row) in self.stack.iter().enumerate() {
-            if row.iter().all(|block| block.is_some()) {
-                clearing.insert(i);
+            if row.iter().all(|cell| cell.is_some()) {
+                self.clearing.insert(i);
             }
         }
-        self.clearing = clearing;
         if self.clearing.is_empty() {
             self.score.combo = -1;
+        } else {
+            line_clear_delay.set(sleep(LINE_CLEAR_DURATION));
         }
     }
 
-    pub fn line_clear(&mut self) {
+    pub fn t_spin_check(&self) -> bool {
+        if !self.last_action_was_rotate || !matches!(self.falling.variant, TetrominoVariant::T) {
+            return false;
+        }
+        let (c_x, c_y) = self.falling.geometry.center;
+
+        let corners = vec![(-1, -1), (-1, 1), (1, -1), (1, 1)];
+        let corners_occupied = corners
+            .iter()
+            .filter(|&&(d_x, d_y)| {
+                let x = c_x + d_x;
+                let y = c_y + d_y;
+                self.stack
+                    .get(x as usize)
+                    .and_then(|col| col.get(y as usize))
+                    .map_or(true, |cell| cell.is_some())
+            })
+            .count();
+
+        corners_occupied >= 3
+    }
+
+    pub fn line_clear(&mut self) -> ClearType {
         let stack = replace(&mut self.stack, Vec::new());
 
         for (i, row) in stack.into_iter().enumerate() {
@@ -205,15 +283,31 @@ impl Player {
             }
         }
 
-        let num_cleared = self.clearing.len() as u32;
+        let num_cleared = self.clearing.len();
+        let perfect_clear = self.stack.iter().flatten().all(|cell| cell.is_none());
 
-        self.stack.extend(vec![vec![None; BOARD_DIMENSION.0 as usize]; num_cleared as usize]);
+        let clear_type = ClearType::new(num_cleared, perfect_clear, self.t_spin_check());
 
-        self.score.score_clear(num_cleared, &self.stack);
+        self.stack.extend(vec![vec![None; BOARD_DIMENSION.0 as usize]; num_cleared]);
+
+        self.score.score_clear(clear_type);
         self.update_ghost();
         self.drop_interval = Player::calc_drop_interval(self.score.level);
 
         self.clearing.clear();
+
+        clear_type
+    }
+
+    pub fn add_garbage(&mut self, clear_type: ClearType) {
+        let hole = self.bag.seed.gen_range(0..10);
+        let line = (0..10).map(|i| if i == hole { None } else { Some(Color::White) }).collect();
+        let garbage = vec![line; clear_type.garbage_line_count()];
+        self.stack.splice(0..0, garbage);
+        while self.falling.overlapping(&self.stack) {
+            self.falling.geometry.transform(0, -1);
+        }
+        self.update_ghost();
     }
 
     fn reset_lock_timer(&mut self, lock_delay: &mut Pin<&mut Sleep>) {
@@ -243,6 +337,7 @@ impl Player {
                 }
             },
         }
+        self.last_action_was_rotate = false;
     }
 
     pub async fn shift(
@@ -253,7 +348,7 @@ impl Player {
         conn: &Box<dyn ConnTrait>,
     ) -> Result<()> {
         match self.kind {
-            PlayerKind::Local => {
+            PlayerType::Local => {
                 if self.lock_reset_count == LOCK_RESET_LIMIT {
                     self.place(line_clear_delay, conn).await?;
                 }
@@ -262,10 +357,11 @@ impl Player {
                 self.reset_lock_timer(lock_delay);
                 conn.send_pos(&self).await?;
             },
-            PlayerKind::Remote => {
+            PlayerType::Remote => {
                 self.handle_shift(direction);
             },
         }
+        self.last_action_was_rotate = false;
         Ok(())
     }
 
@@ -302,9 +398,11 @@ impl Player {
                 self.update_ghost();
                 self.reset_lock_timer(lock_delay);
 
-                if let PlayerKind::Local = self.kind {
+                if let PlayerType::Local = self.kind {
                     conn.send_pos(self).await?;
                 }
+
+                self.last_action_was_rotate = true;
 
                 return Ok(())
             }
@@ -332,9 +430,9 @@ impl Player {
             self.stack[position.1 as usize][position.0 as usize] = Some(self.falling.color);
         }
 
-        self.mark_clear();
+        self.mark_clear(line_clear_delay);
 
-        if let PlayerKind::Local = self.kind {
+        if let PlayerType::Local = self.kind {
             conn.send_place(self).await?;
         }
 
@@ -347,7 +445,7 @@ impl Player {
 
         self.update_ghost();
 
-        line_clear_delay.set(sleep(LINE_CLEAR_DURATION));
+        self.last_action_was_rotate = false;
 
         Ok(())
     }
@@ -364,9 +462,11 @@ impl Player {
 
             self.update_ghost();
 
-            if let PlayerKind::Local = self.kind {
+            if let PlayerType::Local = self.kind {
                 conn.send_hold().await?;
             }
+
+            self.last_action_was_rotate = false;
         }
         Ok(())
     }

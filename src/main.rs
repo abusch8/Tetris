@@ -6,7 +6,7 @@ use crossterm::{
 };
 use clap::Parser;
 
-use crate::{conn::ConnKind, run::run};
+use crate::{conn::ConnType, run::run};
 
 mod color;
 mod config;
@@ -58,7 +58,7 @@ async fn main() -> Result<()> {
 
     enter_tui_mode()?;
 
-    let conn_kind = ConnKind::from_args(cli.host, cli.join);
+    let conn_kind = ConnType::from_args(cli.host, cli.join);
     let start_level = cli.start_level;
 
     run(conn_kind, start_level).await?;
