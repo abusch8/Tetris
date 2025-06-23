@@ -17,6 +17,7 @@ mod event;
 mod game;
 mod player;
 mod run;
+mod score;
 mod tetromino;
 
 #[derive(Parser)]
