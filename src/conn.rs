@@ -23,29 +23,30 @@ pub enum TcpPacketMode {
 }
 
 #[derive(Clone, Copy)]
-pub enum ConnType {
+pub enum ConnKind {
     Host,
     Client,
     Empty,
 }
 
-impl ConnType {
+impl ConnKind {
     pub fn from_args(is_host: bool, is_client: bool) -> Self {
         match (is_host, is_client) {
             (true,  true ) |
-            (true,  false) => ConnType::Host,
-            (false, true ) => ConnType::Client,
-            (false, false) => ConnType::Empty,
+            (true,  false) => ConnKind::Host,
+            (false, true ) => ConnKind::Client,
+            (false, false) => ConnKind::Empty,
         }
     }
 
     pub fn is_multiplayer(self) -> bool {
-        matches!(self, ConnType::Host | ConnType::Client)
+        matches!(self, ConnKind::Host | ConnKind::Client)
     }
 
     pub fn is_host(self) -> bool {
-        matches!(self, ConnType::Host | ConnType::Empty)
-    }}
+        matches!(self, ConnKind::Host | ConnKind::Empty)
+    }
+}
 
 #[async_trait]
 pub trait ConnTrait {
@@ -107,9 +108,9 @@ impl Conn {
         Ok(udp_socket)
     }
 
-    pub async fn establish_connection(conn_kind: ConnType, display: &mut Display) -> Result<Box<dyn ConnTrait>> {
+    pub async fn establish_connection(conn_kind: ConnKind, display: &mut Display) -> Result<Box<dyn ConnTrait>> {
         match conn_kind {
-            ConnType::Host => {
+            ConnKind::Host => {
                 let bind_addr = *config::BIND_ADDR;
 
                 let (tcp_stream, peer_addr) = Conn::tcp_listen(bind_addr, display).await?;
@@ -119,7 +120,7 @@ impl Conn {
 
                 Ok(Box::new(Conn { udp_socket, tcp_stream }))
             },
-            ConnType::Client => {
+            ConnKind::Client => {
                 let peer_addr = *config::CONN_ADDR;
 
                 let (tcp_stream, bind_addr) = Conn::tcp_connect(peer_addr, display).await?;
@@ -129,7 +130,7 @@ impl Conn {
 
                 Ok(Box::new(Conn { udp_socket, tcp_stream }))
             },
-            ConnType::Empty => Ok(Box::new(DummyConn)),
+            ConnKind::Empty => Ok(Box::new(DummyConn)),
         }
     }
 

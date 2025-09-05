@@ -5,7 +5,7 @@ use strum::IntoEnumIterator;
 use tokio::time::{interval, sleep, Interval, Sleep};
 use num_derive::FromPrimitive;
 
-use crate::{conn::ConnTrait, display::BOARD_DIMENSION, score::{ClearType, Score}, tetromino::*};
+use crate::{conn::ConnTrait, display::BOARD_DIMENSION, score::{ClearKind, Score}, tetromino::*};
 
 pub type Stack = Vec<Vec<Option<Color>>>;
 
@@ -39,7 +39,7 @@ static O_OFFSETS: [[(i32, i32); 5]; 4] = [
 pub enum ShiftDirection { Left, Right }
 
 #[derive(Copy, Clone)]
-pub enum PlayerType { Local, Remote }
+pub enum PlayerKind { Local, Remote }
 
 pub struct Bag {
     pub next: Vec<Tetromino>,
@@ -47,7 +47,7 @@ pub struct Bag {
 }
 
 pub struct Player {
-    pub kind: PlayerType,
+    pub kind: PlayerKind,
     pub seed: StdRng,
     pub falling: Tetromino,
     pub holding: Option<Tetromino>,
@@ -92,7 +92,7 @@ impl Bag {
 }
 
 impl Player {
-    pub fn new(kind: PlayerType, start_level: u32, seed: u64) -> Self {
+    pub fn new(kind: PlayerKind, start_level: u32, seed: u64) -> Self {
         let mut seed = StdRng::seed_from_u64(seed);
         let mut bag = Bag::new(&mut seed);
         let stack = vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize];
@@ -176,7 +176,7 @@ impl Player {
         corners_occupied >= 3
     }
 
-    pub fn line_clear(&mut self) -> ClearType {
+    pub fn line_clear(&mut self) -> ClearKind {
         let stack = replace(&mut self.stack, Vec::new());
 
         for (i, row) in stack.into_iter().enumerate() {
@@ -185,23 +185,23 @@ impl Player {
             }
         }
 
-        let clear_type = ClearType::from_state(&self);
+        let clear_kind = ClearKind::from_state(&self);
 
         self.stack.extend(vec![vec![None; BOARD_DIMENSION.0 as usize]; self.clearing.len()]);
 
-        self.score.score_clear(clear_type);
+        self.score.score_clear(clear_kind);
         self.update_ghost();
         self.drop_interval = Player::calc_drop_interval(self.score.level);
 
         self.clearing.clear();
 
-        clear_type
+        clear_kind
     }
 
-    pub fn add_garbage(&mut self, clear_type: ClearType) {
+    pub fn add_garbage(&mut self, clear_kind: ClearKind) {
         let hole = self.seed.gen_range(0..10);
         let line = (0..10).map(|i| if i == hole { None } else { Some(Color::White) }).collect();
-        let garbage = vec![line; clear_type.garbage_line_count()];
+        let garbage = vec![line; clear_kind.garbage_line_count()];
         self.stack.splice(0..0, garbage);
         while self.falling.overlapping(&self.stack) {
             self.falling.geometry.transform(0, -1);
@@ -247,7 +247,7 @@ impl Player {
         conn: &Box<dyn ConnTrait>,
     ) -> Result<()> {
         match self.kind {
-            PlayerType::Local => {
+            PlayerKind::Local => {
                 if self.lock_reset_count == LOCK_RESET_LIMIT {
                     self.place(line_clear_delay, conn).await?;
                 }
@@ -256,7 +256,7 @@ impl Player {
                 self.reset_lock_timer(lock_delay);
                 conn.send_pos(&self).await?;
             },
-            PlayerType::Remote => {
+            PlayerKind::Remote => {
                 self.handle_shift(direction);
             },
         }
@@ -297,7 +297,7 @@ impl Player {
                 self.update_ghost();
                 self.reset_lock_timer(lock_delay);
 
-                if let PlayerType::Local = self.kind {
+                if let PlayerKind::Local = self.kind {
                     conn.send_pos(self).await?;
                 }
 
@@ -331,7 +331,7 @@ impl Player {
 
         self.mark_clear(line_clear_delay);
 
-        if let PlayerType::Local = self.kind {
+        if let PlayerKind::Local = self.kind {
             conn.send_place(self).await?;
         }
 
@@ -361,7 +361,7 @@ impl Player {
 
             self.update_ghost();
 
-            if let PlayerType::Local = self.kind {
+            if let PlayerKind::Local = self.kind {
                 conn.send_hold().await?;
             }
 
