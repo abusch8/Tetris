@@ -13,8 +13,8 @@ pub struct GameInfo {
 }
 
 pub struct Players {
-    pub local: Player,
-    pub remote: Option<Player>,
+    pub main: Player,
+    pub opponent: Option<Player>,
 }
 
 impl Index<usize> for Players {
@@ -22,30 +22,32 @@ impl Index<usize> for Players {
 
     fn index(&self, index: usize) -> &Self::Output {
         match index {
-            0 => &self.local,
-            1 => &self.remote.as_ref().unwrap_or_else(|| panic!("Multiplayer not enabled")),
+            0 => &self.main,
+            1 => &self.opponent.as_ref().unwrap_or_else(|| panic!("Multiplayer not enabled")),
             _ => panic!("Index out of bounds"),
         }
     }
 }
 
 impl Game {
-    pub async fn start(conn_kind: ConnKind, start_level: u32, conn: &mut Box<dyn ConnTrait>) -> Result<Self> {
+    pub async fn start(ai: bool, conn_kind: ConnKind, start_level: u32, conn: &mut Box<dyn ConnTrait>) -> Result<Self> {
         let seed_idx = conn_kind.is_host() as usize;
 
         let GameInfo { start_level, seeds } = GameInfo::sync(start_level, conn_kind, conn).await?;
 
-        let local = Player::new(PlayerKind::Local, start_level, seeds[seed_idx ^ 1]);
-        let remote = if conn_kind.is_multiplayer() {
+        let main = Player::new(PlayerKind::Local, start_level, seeds[seed_idx ^ 1]);
+        let opponent = if conn_kind.is_multiplayer() {
             Some(Player::new(PlayerKind::Remote, start_level, seeds[seed_idx]))
+        } else if ai {
+            Some(Player::new(PlayerKind::Ai, start_level, thread_rng().gen::<u64>()))
         } else {
             None
         };
 
-        let mut game = Game { players: Players { local, remote } };
+        let mut game = Game { players: Players { main, opponent } };
 
-        game.players.local.update_ghost();
-        if let Some(remote) = &mut game.players.remote {
+        game.players.main.update_ghost();
+        if let Some(remote) = &mut game.players.opponent {
             remote.update_ghost();
         }
 

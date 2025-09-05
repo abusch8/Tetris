@@ -10,7 +10,7 @@ pub type Shape = Vec<Dimension>;
 #[derive(PartialEq)]
 pub enum RotationDirection { Clockwise, CounterClockwise }
 
-#[derive(Clone, Copy, FromPrimitive, ToPrimitive, PartialEq, Debug)]
+#[derive(Clone, Copy, EnumIter, FromPrimitive, ToPrimitive, PartialEq, Debug)]
 pub enum CardinalDirection { North, East, South, West }
 
 #[derive(Clone, Copy, EnumIter, FromPrimitive, ToPrimitive, PartialEq, Debug)]

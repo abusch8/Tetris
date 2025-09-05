@@ -29,7 +29,7 @@ pub async fn handle_game_event(
             if kind == KeyEventKind::Press {
                 match config::controls::ACTION_MAP.get(&code) {
                     Some(InputAction::MoveRight) => {
-                        game.players.local.shift(
+                        game.players.main.shift(
                             ShiftDirection::Right,
                             lock_delay,
                             line_clear_delay,
@@ -37,7 +37,7 @@ pub async fn handle_game_event(
                         ).await?;
                     },
                     Some(InputAction::MoveLeft) => {
-                        game.players.local.shift(
+                        game.players.main.shift(
                             ShiftDirection::Left,
                             lock_delay,
                             line_clear_delay,
@@ -45,38 +45,39 @@ pub async fn handle_game_event(
                         ).await?;
                     },
                     Some(InputAction::RotateRight) => {
-                        game.players.local.rotate(
+                        game.players.main.rotate(
                             RotationDirection::Clockwise,
                             lock_delay,
                             conn,
                         ).await?;
                     },
                     Some(InputAction::RotateLeft) => {
-                        game.players.local.rotate(
+                        game.players.main.rotate(
                             RotationDirection::CounterClockwise,
                             lock_delay,
                             conn,
                         ).await?;
                     },
                     Some(InputAction::SoftDrop) => {
-                        game.players.local.soft_drop(
+                        game.players.main.soft_drop(
                             lock_delay,
                             conn,
                         ).await?;
                     },
                     Some(InputAction::HardDrop) => {
-                        game.players.local.hard_drop(
+                        game.players.main.hard_drop(
+                            lock_delay,
                             line_clear_delay,
                             conn,
                         ).await?;
                     },
                     Some(InputAction::Hold) => {
-                        game.players.local.hold(
+                        game.players.main.hold(
                             conn,
                         ).await?;
                     },
                     Some(InputAction::Quit) => {
-                        game.players.local.lost = true;
+                        game.players.main.lost = true;
                     },
                     None => (),
                 }

@@ -1,13 +1,11 @@
-use std::{collections::HashSet, io::Result, mem::replace, pin::Pin, time::Duration};
+use std::{collections::HashSet, io::Result, mem::replace, ops::{Deref, DerefMut}, pin::Pin, time::Duration};
 use crossterm::style::Color;
 use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
 use strum::IntoEnumIterator;
 use tokio::time::{interval, sleep, Interval, Sleep};
 use num_derive::FromPrimitive;
 
-use crate::{conn::ConnTrait, display::BOARD_DIMENSION, score::{ClearKind, Score}, tetromino::*};
-
-pub type Stack = Vec<Vec<Option<Color>>>;
+use crate::{agent, conn::ConnTrait, display::BOARD_DIMENSION, score::{ClearKind, Score}, tetromino::*};
 
 const LOCK_RESET_LIMIT: u8 = 15;
 const LOCK_DURATION: Duration = Duration::from_millis(500);
@@ -39,29 +37,85 @@ static O_OFFSETS: [[(i32, i32); 5]; 4] = [
 pub enum ShiftDirection { Left, Right }
 
 #[derive(Copy, Clone)]
-pub enum PlayerKind { Local, Remote }
+pub enum PlayerKind { Ai, Local, Remote }
+
+pub struct Stack(pub Vec<Vec<Option<Color>>>);
+
+impl Stack {
+    pub fn new() -> Self {
+        Stack(vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize])
+    }
+
+    pub fn line_clear(&mut self, clearing: &HashSet<usize>) { // TODO refactor
+        let stack = replace(self, Stack(Vec::new()));
+
+        for (i, row) in stack.clone().into_iter().enumerate() {
+            if clearing.get(&i).is_none() {
+                self.push(row);
+            }
+        }
+
+        self.extend(vec![vec![None; BOARD_DIMENSION.0 as usize]; clearing.len()]);
+    }
+
+    pub fn add(&mut self, tetromino: &Tetromino) -> bool {
+        for position in tetromino.geometry.shape.iter() {
+            if position.1 > BOARD_DIMENSION.1 - 1 {
+                return false;
+            }
+            self[position.1 as usize][position.0 as usize] = Some(tetromino.color);
+        }
+        true
+    }
+
+    pub fn add_garbage(&mut self, clear_kind: ClearKind, seed: &mut StdRng) {
+        let hole = seed.gen_range(0..10);
+        let line = (0..10).map(|i| if i == hole { None } else { Some(Color::White) }).collect();
+        let garbage = vec![line; clear_kind.garbage_line_count()];
+        self.splice(0..0, garbage);
+    }
+
+    pub fn evaluate_gaps(&self) -> i32 {
+        let mut score = 0;
+
+        for row in self.iter() {
+            let mut x = 0;
+            for k in row.iter() {
+                if k.is_some() {
+                    x += 1;
+                }
+                score += x / 10
+            }
+        }
+        score
+    }
+
+    pub fn evaluate_roughness(&self) -> i32 {
+
+        0
+    }
+
+    pub fn evaluate_height(&self) -> i32 {
+        self.iter()
+            .enumerate()
+            .find(|(_, row)| row.iter().any(|k| k.is_some()))
+            .map(|(i, _)| i)
+            .unwrap_or(self.len()) as i32
+    }
+}
+
+impl Deref for Stack {
+    type Target = Vec<Vec<Option<Color>>>;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+impl DerefMut for Stack {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
+}
 
 pub struct Bag {
     pub next: Vec<Tetromino>,
     pub rest: Vec<Tetromino>,
-}
-
-pub struct Player {
-    pub kind: PlayerKind,
-    pub seed: StdRng,
-    pub falling: Tetromino,
-    pub holding: Option<Tetromino>,
-    pub ghost: Option<Tetromino>,
-    pub bag: Bag,
-    pub stack: Stack,
-    pub score: Score,
-    pub clearing: HashSet<usize>,
-    pub can_hold: bool,
-    pub lost: bool,
-    pub locking: bool,
-    pub lock_reset_count: u8,
-    pub last_action_was_rotate: bool,
-    pub drop_interval: Interval,
 }
 
 impl Bag {
@@ -91,11 +145,29 @@ impl Bag {
     }
 }
 
+pub struct Player {
+    pub kind: PlayerKind,
+    pub seed: StdRng,
+    pub falling: Tetromino,
+    pub holding: Option<Tetromino>,
+    pub ghost: Option<Tetromino>,
+    pub bag: Bag,
+    pub stack: Stack,
+    pub score: Score,
+    pub clearing: HashSet<usize>,
+    pub can_hold: bool,
+    pub lost: bool,
+    pub locking: bool,
+    pub lock_reset_count: u8,
+    pub last_action_was_rotate: bool,
+    pub drop_interval: Interval,
+}
+
 impl Player {
     pub fn new(kind: PlayerKind, start_level: u32, seed: u64) -> Self {
         let mut seed = StdRng::seed_from_u64(seed);
         let mut bag = Bag::new(&mut seed);
-        let stack = vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize];
+        let stack = Stack::new();
         let mut falling = bag.get_next(&mut seed);
         falling.start_pos_transform(&stack);
         Player {
@@ -177,17 +249,9 @@ impl Player {
     }
 
     pub fn line_clear(&mut self) -> ClearKind {
-        let stack = replace(&mut self.stack, Vec::new());
-
-        for (i, row) in stack.into_iter().enumerate() {
-            if self.clearing.get(&i).is_none() {
-                self.stack.push(row);
-            }
-        }
+        self.stack.line_clear(&self.clearing);
 
         let clear_kind = ClearKind::from_state(&self);
-
-        self.stack.extend(vec![vec![None; BOARD_DIMENSION.0 as usize]; self.clearing.len()]);
 
         self.score.score_clear(clear_kind);
         self.update_ghost();
@@ -199,10 +263,7 @@ impl Player {
     }
 
     pub fn add_garbage(&mut self, clear_kind: ClearKind) {
-        let hole = self.seed.gen_range(0..10);
-        let line = (0..10).map(|i| if i == hole { None } else { Some(Color::White) }).collect();
-        let garbage = vec![line; clear_kind.garbage_line_count()];
-        self.stack.splice(0..0, garbage);
+        self.stack.add_garbage(clear_kind, &mut self.seed);
         while self.falling.overlapping(&self.stack) {
             self.falling.geometry.transform(0, -1);
         }
@@ -249,7 +310,7 @@ impl Player {
         match self.kind {
             PlayerKind::Local => {
                 if self.lock_reset_count == LOCK_RESET_LIMIT {
-                    self.place(line_clear_delay, conn).await?;
+                    self.place(lock_delay, line_clear_delay, conn).await?;
                 }
                 self.handle_shift(direction);
                 self.lock_reset_count += 1;
@@ -259,6 +320,7 @@ impl Player {
             PlayerKind::Remote => {
                 self.handle_shift(direction);
             },
+            _ => (),
         }
         self.last_action_was_rotate = false;
         Ok(())
@@ -314,6 +376,7 @@ impl Player {
 
     pub async fn place(
         &mut self,
+        lock_delay: &mut Pin<&mut Sleep>,
         line_clear_delay: &mut Pin<&mut Sleep>,
         conn: &Box<dyn ConnTrait>,
     ) -> Result<()> {
@@ -321,12 +384,9 @@ impl Player {
             return Ok(())
         }
 
-        for position in self.falling.geometry.shape.iter() {
-            if position.1 > BOARD_DIMENSION.1 - 1 {
-                self.lost = true;
-                return Ok(())
-            }
-            self.stack[position.1 as usize][position.0 as usize] = Some(self.falling.color);
+        if !self.stack.add(&self.falling) {
+            self.lost = true;
+            return Ok(())
         }
 
         self.mark_clear(line_clear_delay);
@@ -394,6 +454,7 @@ impl Player {
 
     pub async fn hard_drop(
         &mut self,
+        lock_delay: &mut Pin<&mut Sleep>,
         line_clear_delay: &mut Pin<&mut Sleep>,
         conn: &Box<dyn ConnTrait>,
     ) -> Result<()> {
@@ -401,7 +462,7 @@ impl Player {
             self.falling.geometry.transform(0, -1);
             self.score.score += 2;
         }
-        self.place(line_clear_delay, conn).await?;
+        self.place(lock_delay, line_clear_delay, conn).await?;
         Ok(())
     }
 }

@@ -3,24 +3,26 @@ use crossterm::event::EventStream;
 use futures::{FutureExt, stream::StreamExt};
 use tokio::{pin, select, time::{interval, sleep, Duration}};
 
-use crate::{config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, tetromino::Geometry};
+use crate::{agent, config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, player::PlayerKind, tetromino::Geometry};
+use crate::debug_log;
 
-pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
+pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> {
     let mut reader = EventStream::new();
 
-    let display = &mut Display::new(conn_kind.is_multiplayer())?;
+    let display = &mut Display::new(ai || conn_kind.is_multiplayer())?;
 
     pin! {
         let lock_delay = sleep(Duration::ZERO);
         let line_clear_delay_local = sleep(Duration::ZERO);
         let line_clear_delay_remote = sleep(Duration::ZERO);
+        let agent_delay = sleep(Duration::ZERO);
     }
 
     let mut heartbeat_interval = interval(Duration::from_secs(1));
     let mut rtt = 0;
 
     let mut conn = Conn::establish_connection(conn_kind, display).await?;
-    let game = &mut Game::start(conn_kind, start_level, &mut conn).await?;
+    let game = &mut Game::start(ai, conn_kind, start_level, &mut conn).await?;
 
     loop {
         select! {
@@ -34,33 +36,38 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
                     &mut line_clear_delay_local,
                 ).await?
             },
-            _ = &mut lock_delay, if game.players.local.locking => {
-                game.players.local.place(&mut line_clear_delay_local, &mut conn).await?;
+            _ = &mut lock_delay, if game.players.main.locking => {
+                game.players.main.place(&mut lock_delay, &mut line_clear_delay_local, &mut conn).await?;
             },
             _ = &mut line_clear_delay_local, if (
-                game.players.local.clearing.len() > 0
+                game.players.main.clearing.len() > 0
             ) => {
-                let clear_kind = game.players.local.line_clear();
+                let clear_kind = game.players.main.line_clear();
                 if conn_kind.is_multiplayer() {
-                    game.players.remote.as_mut().unwrap().add_garbage(clear_kind);
+                    game.players.opponent.as_mut().unwrap().add_garbage(clear_kind);
                 }
             },
             _ = &mut line_clear_delay_remote, if (
-                conn_kind.is_multiplayer() &&
-                game.players.remote.as_mut().unwrap().clearing.len() > 0
+                (ai || conn_kind.is_multiplayer()) &&
+                game.players.opponent.as_mut().unwrap().clearing.len() > 0
             ) => {
-                let clear_kind = game.players.remote.as_mut().unwrap().line_clear();
-                game.players.local.add_garbage(clear_kind);
+                let clear_kind = game.players.opponent.as_mut().unwrap().line_clear();
+                game.players.main.add_garbage(clear_kind);
             },
-            _ = game.players.local.drop_interval.tick() => {
-                game.players.local.drop(&mut lock_delay);
+            _ = &mut agent_delay, if ai => {
+                agent::execute(game.players.opponent.as_mut().unwrap(), &mut lock_delay, &mut line_clear_delay_remote, &conn).await?;
+                agent_delay.set(sleep(Duration::from_millis(500)));
             },
-            _ = async { game.players.remote.as_mut().unwrap().drop_interval.tick().await }, if (
-                conn_kind.is_multiplayer()
+            _ = game.players.main.drop_interval.tick() => {
+                game.players.main.drop(&mut lock_delay);
+            },
+            _ = async { game.players.opponent.as_mut().unwrap().drop_interval.tick().await }, if (
+                ai || conn_kind.is_multiplayer()
             ) => {
-                game.players.remote.as_mut().unwrap().drop(&mut lock_delay);
+                game.players.opponent.as_mut().unwrap().drop(&mut lock_delay);
             },
             _ = display.render_interval.tick() => {
+                // debug_log!("{:?}", game.players.main.falling.geometry.center);
                 display.render(game, rtt)?;
             },
             _ = display.frame_count_interval.tick(), if *config::DISPLAY_FRAME_RATE => {
@@ -74,7 +81,7 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
                     UdpPacketMode::Pos => {
                         let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
                         let geometry = Geometry::from_bytes(geometry_bytes);
-                        game.players.remote.as_mut().unwrap().set_falling_geometry(geometry);
+                        game.players.opponent.as_mut().unwrap().set_falling_geometry(geometry);
                     },
                 }
             },
@@ -92,18 +99,18 @@ pub async fn run(conn_kind: ConnKind, start_level: u32) -> Result<()> {
                     TcpPacketMode::Place => {
                         let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
                         let geometry = Geometry::from_bytes(geometry_bytes);
-                        game.players.remote.as_mut().unwrap().set_falling_geometry(geometry);
-                        game.players.remote.as_mut().unwrap().place(&mut line_clear_delay_remote, &conn).await?;
+                        game.players.opponent.as_mut().unwrap().set_falling_geometry(geometry);
+                        game.players.opponent.as_mut().unwrap().place(&mut lock_delay, &mut line_clear_delay_remote, &conn).await?;
                     },
                     TcpPacketMode::Hold => {
-                        game.players.remote.as_mut().unwrap().hold(&conn).await?;
+                        game.players.opponent.as_mut().unwrap().hold(&conn).await?;
                     },
                     _ => (),
                 }
             },
             _ = async {}, if (
-                game.players.local.lost || conn_kind.is_multiplayer() &&
-                game.players.remote.as_ref().unwrap().lost
+                game.players.main.lost || conn_kind.is_multiplayer() &&
+                game.players.opponent.as_ref().unwrap().lost
             ) => {
                 break;
             },

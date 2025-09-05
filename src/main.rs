@@ -8,6 +8,7 @@ use clap::Parser;
 
 use crate::{conn::ConnKind, run::run};
 
+mod agent;
 mod color;
 mod config;
 mod conn;
@@ -23,6 +24,8 @@ mod tetromino;
 #[derive(Parser)]
 #[command(version)]
 pub struct Cli {
+    #[arg(long)]
+    ai: bool,
     #[arg(long)]
     host: bool,
     #[arg(long)]
@@ -62,7 +65,7 @@ async fn main() -> Result<()> {
     let conn_kind = ConnKind::from_args(cli.host, cli.join);
     let start_level = cli.start_level;
 
-    run(conn_kind, start_level).await?;
+    run(cli.ai, conn_kind, start_level).await?;
 
     exit_tui_mode()?;
 
