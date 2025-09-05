@@ -3,7 +3,7 @@ use crossterm::event::EventStream;
 use futures::{FutureExt, stream::StreamExt};
 use tokio::{pin, select, time::{interval, sleep, Duration}};
 
-use crate::{agent, config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, player::PlayerKind, tetromino::Geometry};
+use crate::{agent::Agent, config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, player::PlayerKind, tetromino::Geometry};
 use crate::debug_log;
 
 pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> {
@@ -13,8 +13,8 @@ pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> 
 
     pin! {
         let lock_delay = sleep(Duration::ZERO);
-        let line_clear_delay_local = sleep(Duration::ZERO);
-        let line_clear_delay_remote = sleep(Duration::ZERO);
+        let line_clear_delay = sleep(Duration::ZERO);
+        let line_clear_delay_opponent = sleep(Duration::ZERO);
         let agent_delay = sleep(Duration::ZERO);
     }
 
@@ -23,6 +23,14 @@ pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> 
 
     let mut conn = Conn::establish_connection(conn_kind, display).await?;
     let game = &mut Game::start(ai, conn_kind, start_level, &mut conn).await?;
+
+    let mut agent = if ai {
+        let mut agent = Agent::new();
+        agent.evaluate(game.players.opponent.as_ref().unwrap());
+        Some(agent)
+    } else {
+        None
+    };
 
     loop {
         select! {
@@ -33,13 +41,13 @@ pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> 
                     event,
                     display,
                     &mut lock_delay,
-                    &mut line_clear_delay_local,
+                    &mut line_clear_delay,
                 ).await?
             },
             _ = &mut lock_delay, if game.players.main.locking => {
-                game.players.main.place(&mut lock_delay, &mut line_clear_delay_local, &mut conn).await?;
+                game.players.main.place(&mut line_clear_delay, &mut conn).await?;
             },
-            _ = &mut line_clear_delay_local, if (
+            _ = &mut line_clear_delay, if (
                 game.players.main.clearing.len() > 0
             ) => {
                 let clear_kind = game.players.main.line_clear();
@@ -47,7 +55,7 @@ pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> 
                     game.players.opponent.as_mut().unwrap().add_garbage(clear_kind);
                 }
             },
-            _ = &mut line_clear_delay_remote, if (
+            _ = &mut line_clear_delay_opponent, if (
                 (ai || conn_kind.is_multiplayer()) &&
                 game.players.opponent.as_mut().unwrap().clearing.len() > 0
             ) => {
@@ -55,8 +63,8 @@ pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> 
                 game.players.main.add_garbage(clear_kind);
             },
             _ = &mut agent_delay, if ai => {
-                agent::execute(game.players.opponent.as_mut().unwrap(), &mut lock_delay, &mut line_clear_delay_remote, &conn).await?;
-                agent_delay.set(sleep(Duration::from_millis(500)));
+                agent.as_mut().unwrap().execute(game.players.opponent.as_mut().unwrap(), &mut lock_delay, &mut line_clear_delay_opponent, &conn).await?;
+                agent_delay.set(sleep(Duration::from_millis(200)));
             },
             _ = game.players.main.drop_interval.tick() => {
                 game.players.main.drop(&mut lock_delay);
@@ -100,7 +108,7 @@ pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> 
                         let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
                         let geometry = Geometry::from_bytes(geometry_bytes);
                         game.players.opponent.as_mut().unwrap().set_falling_geometry(geometry);
-                        game.players.opponent.as_mut().unwrap().place(&mut lock_delay, &mut line_clear_delay_remote, &conn).await?;
+                        game.players.opponent.as_mut().unwrap().place(&mut line_clear_delay_opponent, &conn).await?;
                     },
                     TcpPacketMode::Hold => {
                         game.players.opponent.as_mut().unwrap().hold(&conn).await?;

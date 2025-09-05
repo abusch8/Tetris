@@ -1,80 +1,94 @@
-use std::{io::Result, pin::Pin, thread::sleep, time::Duration};
+use std::{io::Result, pin::Pin};
 
 use crate::{conn::ConnTrait, debug_log, display::{Dimension, BOARD_DIMENSION}, player::{Player, ShiftDirection, Stack}, tetromino::{CardinalDirection, RotationDirection, Tetromino}};
 use tokio::time::Sleep;
-
-use strum::IntoEnumIterator;
 
 fn check_valid_play(tetromino: &Tetromino, stack: &Stack) -> bool {
     !tetromino.overlapping(stack) && tetromino.hitting_bottom(stack) // TODO reachability check
 }
 
-fn scan(player: &Player) -> Vec<Tetromino> {
-    let mut valid_plays = Vec::new();
+pub struct Agent {
+    pub goal: Option<Tetromino>,
+}
 
-    let mut t = Tetromino::new(player.falling.variant);
+impl Agent {
 
-    while t.geometry.center.1 > 0 {
-        t.geometry.transform(0, -1);
-    }
-    while t.geometry.center.0 > 0 {
-        t.geometry.transform(-1, 0);
-    }
-
-    for i in 0..player.stack.len() {
-        for _ in 0..player.stack.len() {
-            for _ in 0..4 {
-                t.geometry.rotate(RotationDirection::Clockwise);
-                if check_valid_play(&t, &player.stack) {
-                    valid_plays.push(t.clone());
-                }
-            }
-            t.geometry.transform(if i % 2 == 0 { 1 } else { -1 }, 0);
+    pub fn new() -> Self {
+        Agent {
+            goal: None
         }
-        t.geometry.transform(0, 1);
     }
 
-    valid_plays
-}
+    fn scan(player: &Player) -> Vec<Tetromino> {
+        let mut valid_plays = Vec::new();
 
-fn evaluate(player: &Player, valid_plays: Vec<Tetromino>) -> Tetromino {
-    let mut scores: Vec<(Tetromino, i32)> = Vec::new();
+        let mut t = Tetromino::new(player.falling.variant);
 
-    for play in valid_plays {
-        let mut stack = Stack(player.stack.clone());
-        stack.add(&play);
-        let mut score = 0;
-        score += stack.evaluate_gaps();
-        score += stack.evaluate_roughness();
-        score += stack.evaluate_height();
-        scores.push((play, score));
+        while t.geometry.center.1 > 0 {
+            t.geometry.transform(0, -1);
+        }
+        while t.geometry.center.0 > 0 {
+            t.geometry.transform(-1, 0);
+        }
 
+        for i in 0..player.stack.len() {
+            for _ in 0..player.stack.len() {
+                for _ in 0..4 {
+                    t.geometry.rotate(RotationDirection::Clockwise);
+                    if check_valid_play(&t, &player.stack) {
+                        valid_plays.push(t.clone());
+                    }
+                }
+                t.geometry.transform(if i % 2 == 0 { 1 } else { -1 }, 0);
+            }
+            t.geometry.transform(0, 1);
+        }
+
+        valid_plays
     }
 
-    scores.sort_by(|a, b| b.1.cmp(&a.1));
+    pub fn evaluate(&mut self, player: &Player) {
 
-    // debug_log!("{:?}", scores.iter().map(|s| (s.1, s.0.geometry.center)).collect::<Vec<(i32, (i32, i32))>>());
+        let valid_plays = Self::scan(player);
 
-    scores[0].0.clone()
+        let mut scores: Vec<(Tetromino, i32)> = Vec::new();
 
-}
+        for play in valid_plays {
+            let mut stack = Stack(player.stack.clone());
+            stack.add(&play);
+            let mut score = 0;
+            score += stack.evaluate_gaps();
+            score += stack.evaluate_roughness();
+            score += stack.evaluate_height();
+            scores.push((play, score));
 
-pub async fn execute(player: &mut Player, lock_delay: &mut Pin<&mut Sleep>, line_clear_delay: &mut Pin<&mut Sleep>, conn: &Box<dyn ConnTrait>) -> Result<()> {
-    let valid_plays = scan(player);
-    let best_play = evaluate(player, valid_plays);
+        }
 
-    while player.falling.geometry.direction != best_play.geometry.direction {
-        player.falling.geometry.rotate(RotationDirection::Clockwise);
+        scores.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // debug_log!("{:?}", scores.iter().map(|s| (s.1, s.0.geometry.center)).collect::<Vec<(i32, (i32, i32))>>());
+
+        self.goal = Some(scores[0].0.clone());
     }
-    while player.falling.geometry.center.0 > best_play.geometry.center.0 {
-        player.falling.geometry.transform(-1, 0);
-    }
-    while player.falling.geometry.center.0 < best_play.geometry.center.0 {
-        player.falling.geometry.transform(1, 0);
-    }
 
-    Box::pin(player.hard_drop(lock_delay, line_clear_delay, conn)).await?;
+    pub async fn execute(&mut self, player: &mut Player, lock_delay: &mut Pin<&mut Sleep>, line_clear_delay: &mut Pin<&mut Sleep>, conn: &Box<dyn ConnTrait>) -> Result<()> {
 
-    Ok(())
+        if let Some(goal) = &self.goal {
+
+            if player.falling.geometry.direction != goal.geometry.direction {
+                player.falling.geometry.rotate(RotationDirection::Clockwise);
+            } else if player.falling.geometry.center.0 > goal.geometry.center.0 {
+                player.shift(ShiftDirection::Left, lock_delay, line_clear_delay, conn).await?;
+            } else if player.falling.geometry.center.0 < goal.geometry.center.0 {
+                player.shift(ShiftDirection::Right, lock_delay, line_clear_delay, conn).await?;
+            } else {
+                player.hard_drop(line_clear_delay, conn).await?;
+                self.evaluate(player);
+            }
+
+        }
+
+        Ok(())
+    }
 }
 

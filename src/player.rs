@@ -310,17 +310,16 @@ impl Player {
         match self.kind {
             PlayerKind::Local => {
                 if self.lock_reset_count == LOCK_RESET_LIMIT {
-                    self.place(lock_delay, line_clear_delay, conn).await?;
+                    self.place(line_clear_delay, conn).await?;
                 }
                 self.handle_shift(direction);
                 self.lock_reset_count += 1;
                 self.reset_lock_timer(lock_delay);
                 conn.send_pos(&self).await?;
             },
-            PlayerKind::Remote => {
+            PlayerKind::Remote | PlayerKind::Ai=> {
                 self.handle_shift(direction);
             },
-            _ => (),
         }
         self.last_action_was_rotate = false;
         Ok(())
@@ -376,7 +375,6 @@ impl Player {
 
     pub async fn place(
         &mut self,
-        lock_delay: &mut Pin<&mut Sleep>,
         line_clear_delay: &mut Pin<&mut Sleep>,
         conn: &Box<dyn ConnTrait>,
     ) -> Result<()> {
@@ -454,7 +452,6 @@ impl Player {
 
     pub async fn hard_drop(
         &mut self,
-        lock_delay: &mut Pin<&mut Sleep>,
         line_clear_delay: &mut Pin<&mut Sleep>,
         conn: &Box<dyn ConnTrait>,
     ) -> Result<()> {
@@ -462,7 +459,7 @@ impl Player {
             self.falling.geometry.transform(0, -1);
             self.score.score += 2;
         }
-        self.place(lock_delay, line_clear_delay, conn).await?;
+        self.place(line_clear_delay, conn).await?;
         Ok(())
     }
 }

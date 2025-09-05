@@ -66,7 +66,6 @@ pub async fn handle_game_event(
                     },
                     Some(InputAction::HardDrop) => {
                         game.players.main.hard_drop(
-                            lock_delay,
                             line_clear_delay,
                             conn,
                         ).await?;
