@@ -24,8 +24,6 @@ mod tetromino;
 #[command(version)]
 pub struct Cli {
     #[arg(long)]
-    ai: bool,
-    #[arg(long)]
     host: bool,
     #[arg(long)]
     join: bool,
