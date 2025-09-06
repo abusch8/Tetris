@@ -5,7 +5,7 @@ use crossterm::{
 use tokio::time::{interval, Interval};
 use std::fmt::Write as FmtWrite;
 
-use crate::{color::get_board_color, config, debug, game::Game, player::Player};
+use crate::{color::get_board_color, config, debug, player::Player, Mode};
 
 pub type Dimension = (i32, i32);
 
@@ -144,8 +144,10 @@ impl Display {
         }
     }
 
-    pub fn new(is_multiplayer: bool) -> Result<Self> {
+    pub fn new(mode: Mode) -> Result<Self> {
         let stdout = stdout();
+
+        let is_multiplayer = matches!(mode, Mode::Multiplayer | Mode::PlayerVsComputer | Mode::ComputerVsComputer);
 
         let terminal_size = terminal::size()?;
 
@@ -205,8 +207,8 @@ impl Display {
         frame
     }
 
-    pub fn render(&mut self, players: Vec<&mut Player>, rtt: u128) -> Result<()> {
-        let frame = self.construct_frame(&players, rtt);
+    pub fn render(&mut self, players: &Vec<&mut Player>, rtt: u128) -> Result<()> {
+        let frame = self.construct_frame(players, rtt);
 
         for (i, row) in frame.iter().enumerate() {
             self.stdout.queue(MoveTo(0, i as u16))?;

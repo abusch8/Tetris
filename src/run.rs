@@ -1,37 +1,22 @@
 use std::{io::Result, time::{SystemTime, UNIX_EPOCH}};
 use crossterm::event::EventStream;
 use futures::{FutureExt, stream::StreamExt};
-use tokio::{pin, select, time::{interval, sleep, Duration}};
+use tokio::{select, time::{interval, sleep, Duration}};
 
-use crate::{agent::Agent, config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, player::PlayerKind, tetromino::Geometry};
-use crate::debug_log;
+use crate::{agent::Agent, config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, tetromino::Geometry, Mode};
 
-pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> {
+pub async fn run(mode: Mode, conn_kind: ConnKind, start_level: u32) -> Result<()> {
     let mut reader = EventStream::new();
 
-    let display = &mut Display::new(ai || conn_kind.is_multiplayer())?;
-
-    pin! {
-        let agent_delay = sleep(Duration::ZERO);
-    }
+    let display = &mut Display::new(mode)?;
 
     let mut heartbeat_interval = interval(Duration::from_secs(1));
     let mut rtt = 0;
 
     let mut conn = Conn::establish_connection(conn_kind, display).await?;
-    let game = &mut Game::start(ai, conn_kind, start_level, &mut conn).await?;
-
-    let mut agent = if ai {
-        let mut agent = Agent::new();
-        agent.evaluate(game.opponent.as_ref().unwrap());
-        Some(agent)
-    } else {
-        None
-    };
+    let game = &mut Game::start(mode, conn_kind, start_level, &mut conn).await?;
 
     let player = &mut game.player;
-
-    // let players = vec![player];
 
     macro_rules! game_select {
         ($($branch:tt)*) => {
@@ -39,9 +24,6 @@ pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> 
                 Some(Ok(event)) = reader.next().fuse() => {
                     handle_game_event(player, &conn, event, display).await?
                 },
-                // _ = display.render_interval.tick() => {
-                //     display.render(vec![player], rtt)?;
-                // },
                 _ = display.frame_count_interval.tick(), if *config::DISPLAY_FRAME_RATE => {
                     display.calc_fps();
                 },
@@ -56,74 +38,11 @@ pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> 
         };
     }
 
-    if let Some(opponent) = game.opponent.as_mut() {
-        loop {
+    macro_rules! one_player_game_select {
+        ($($branch:tt)*) => {
             game_select! {
                 _ = display.render_interval.tick() => {
-                    display.render(vec![player, opponent], rtt)?;
-                },
-                _ = &mut player.timers.line_clear_delay, if (
-                    player.clearing.len() > 0
-                ) => {
-                    let clear_kind = player.line_clear();
-                    opponent.add_garbage(clear_kind);
-                },
-                _ = opponent.drop_interval.tick() => {
-                    opponent.drop();
-                },
-                _ = &mut opponent.timers.line_clear_delay, if opponent.clearing.len() > 0 => {
-                    let clear_kind = opponent.line_clear();
-                    player.add_garbage(clear_kind);
-                },
-                _ = heartbeat_interval.tick(), if conn_kind.is_multiplayer() => {
-                    conn.send_ping().await?;
-                },
-                Ok((mode, payload)) = conn.recv_udp() => {
-                    match mode {
-                        UdpPacketMode::Pos => {
-                            let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
-                            let geometry = Geometry::from_bytes(geometry_bytes);
-                            opponent.set_falling_geometry(geometry);
-                        },
-                    }
-                },
-                Ok((mode, payload)) = conn.recv_tcp() => {
-                    match mode {
-                        TcpPacketMode::Ping => {
-                            conn.send_pong(payload).await?;
-                        },
-                        TcpPacketMode::Pong => {
-                            let ts_bytes: [u8; 16] = payload[0..16].try_into().unwrap();
-                            let res_ts = u128::from_le_bytes(ts_bytes);
-                            let now_ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
-                            rtt = now_ts.saturating_sub(res_ts);
-                        },
-                        TcpPacketMode::Place => {
-                            let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
-                            let geometry = Geometry::from_bytes(geometry_bytes);
-                            opponent.set_falling_geometry(geometry);
-                            opponent.place(&conn).await?;
-                        },
-                        TcpPacketMode::Hold => {
-                            opponent.hold(&conn).await?;
-                        },
-                        _ => (),
-                    }
-                },
-                _ = &mut agent_delay, if ai => {
-                    agent.as_mut().unwrap().execute(opponent, &conn).await?;
-                    agent_delay.set(sleep(Duration::from_millis(200)));
-                },
-                _ = async {}, if player.lost || opponent.lost => {
-                    break;
-                },
-            }
-        }
-    } else {
-        loop {
-            game_select! {
-                _ = display.render_interval.tick() => {
-                    display.render(vec![player], rtt)?;
+                    display.render(&vec![player], rtt)?;
                 },
                 _ = &mut player.timers.line_clear_delay, if player.clearing.len() > 0 => {
                     let _ = player.line_clear();
@@ -131,8 +50,103 @@ pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> 
                 _ = async {}, if player.lost => {
                     break;
                 },
+                $($branch)*
             }
         }
+    }
+
+    macro_rules! two_player_game_select {
+        ($opponent:ident, $($branch:tt)*) => {
+            game_select! {
+                _ = display.render_interval.tick() => {
+                    display.render(&vec![player, $opponent], rtt)?;
+                },
+                _ = &mut player.timers.line_clear_delay, if player.clearing.len() > 0 => {
+                    let clear_kind = player.line_clear();
+                    $opponent.add_garbage(clear_kind);
+                },
+                _ = $opponent.drop_interval.tick() => {
+                    $opponent.drop();
+                },
+                _ = &mut $opponent.timers.line_clear_delay, if $opponent.clearing.len() > 0 => {
+                    let clear_kind = $opponent.line_clear();
+                    player.add_garbage(clear_kind);
+                },
+                _ = async {}, if player.lost || $opponent.lost => {
+                    break;
+                },
+                $($branch)*
+            }
+        }
+    }
+
+    match mode {
+        Mode::Singleplayer => {
+            loop {
+                one_player_game_select!()
+            }
+        },
+        Mode::Multiplayer => {
+            if let Some(opponent) = game.opponent.as_mut() {
+                loop {
+                    two_player_game_select!(opponent,
+                        _ = heartbeat_interval.tick(), if conn_kind.is_multiplayer() => {
+                            conn.send_ping().await?;
+                        },
+                        Ok((mode, payload)) = conn.recv_udp() => {
+                            match mode {
+                                UdpPacketMode::Pos => {
+                                    let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
+                                    let geometry = Geometry::from_bytes(geometry_bytes);
+                                    opponent.set_falling_geometry(geometry);
+                                },
+                            }
+                        },
+                        Ok((mode, payload)) = conn.recv_tcp() => {
+                            match mode {
+                                TcpPacketMode::Ping => {
+                                    conn.send_pong(payload).await?;
+                                },
+                                TcpPacketMode::Pong => {
+                                    let ts_bytes: [u8; 16] = payload[0..16].try_into().unwrap();
+                                    let res_ts = u128::from_le_bytes(ts_bytes);
+                                    let now_ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+                                    rtt = now_ts.saturating_sub(res_ts);
+                                },
+                                TcpPacketMode::Place => {
+                                    let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
+                                    let geometry = Geometry::from_bytes(geometry_bytes);
+                                    opponent.set_falling_geometry(geometry);
+                                    opponent.place(&conn).await?;
+                                },
+                                TcpPacketMode::Hold => {
+                                    opponent.hold(&conn).await?;
+                                },
+                                _ => (),
+                            }
+                        },
+                    )
+                }
+            }
+        },
+        Mode::PlayerVsComputer => {
+            let mut agent = Agent::new();
+            let mut agent_delay = Box::pin(sleep(Duration::ZERO));
+            if let Some(opponent) = game.opponent.as_mut() {
+                agent.evaluate(opponent);
+                loop {
+                    two_player_game_select!(opponent,
+                        _ = &mut agent_delay => {
+                            agent.execute(opponent, &conn).await?;
+                            agent_delay.set(sleep(Duration::from_millis(200)));
+                        },
+                    )
+                }
+            }
+        },
+        Mode::ComputerVsComputer => { // TODO
+
+        },
     }
     Ok(())
 }

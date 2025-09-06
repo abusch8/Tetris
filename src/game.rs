@@ -1,10 +1,9 @@
-use std::{io::Result, ops::Index};
+use std::io::Result;
 use rand::{thread_rng, Rng};
 
-use crate::{conn::{ConnKind, ConnTrait, TcpPacketMode}, player::{Player, PlayerKind}};
+use crate::{conn::{ConnKind, ConnTrait, TcpPacketMode}, player::{Player, PlayerKind}, Mode};
 
 pub struct Game {
-    // pub players: Players,
     pub player: Player,
     pub opponent: Option<Player>,
 }
@@ -14,36 +13,24 @@ pub struct GameInfo {
     pub seeds: Vec<u64>,
 }
 
-// pub struct Players {
-//     pub main: Player,
-//     pub opponent: Option<Player>,
-// }
-//
-// impl Index<usize> for Players {
-//     type Output = Player;
-//
-//     fn index(&self, index: usize) -> &Self::Output {
-//         match index {
-//             0 => &self.main,
-//             1 => &self.opponent.as_ref().unwrap_or_else(|| panic!("Multiplayer not enabled")),
-//             _ => panic!("Index out of bounds"),
-//         }
-//     }
-// }
-
 impl Game {
-    pub async fn start(ai: bool, conn_kind: ConnKind, start_level: u32, conn: &mut Box<dyn ConnTrait>) -> Result<Self> {
+    pub async fn start(mode: Mode, conn_kind: ConnKind, start_level: u32, conn: &mut Box<dyn ConnTrait>) -> Result<Self> {
         let seed_idx = conn_kind.is_host() as usize;
 
         let GameInfo { start_level, seeds } = GameInfo::sync(start_level, conn_kind, conn).await?;
 
         let player = Player::new(PlayerKind::Local, start_level, seeds[seed_idx ^ 1]);
-        let opponent = if conn_kind.is_multiplayer() {
-            Some(Player::new(PlayerKind::Remote, start_level, seeds[seed_idx]))
-        } else if ai {
-            Some(Player::new(PlayerKind::Ai, start_level, thread_rng().gen::<u64>()))
-        } else {
-            None
+
+        let opponent = match mode {
+            Mode::Singleplayer => {
+                None
+            },
+            Mode::Multiplayer => {
+                Some(Player::new(PlayerKind::Remote, start_level, seeds[seed_idx]))
+            },
+            Mode::PlayerVsComputer | Mode::ComputerVsComputer => {
+                Some(Player::new(PlayerKind::Ai, start_level, thread_rng().gen::<u64>()))
+            },
         };
 
         let mut game = Game { player, opponent };

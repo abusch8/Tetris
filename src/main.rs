@@ -4,7 +4,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, SetTitle},
 };
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 
 use crate::{conn::ConnKind, run::run};
 
@@ -24,8 +24,8 @@ mod tetromino;
 #[derive(Parser)]
 #[command(version)]
 pub struct Cli {
-    #[arg(long)]
-    ai: bool,
+    #[arg(value_enum, default_value_t = Mode::Singleplayer)]
+    mode: Mode,
     #[arg(long)]
     host: bool,
     #[arg(long)]
@@ -56,6 +56,18 @@ pub fn exit_tui_mode() -> Result<()> {
     Ok(())
 }
 
+#[derive(ValueEnum, Clone, Copy)]
+pub enum Mode {
+    #[clap(alias = "s")]
+    Singleplayer,
+    #[clap(alias = "m")]
+    Multiplayer,
+    #[clap(alias = "pvc")]
+    PlayerVsComputer,
+    #[clap(alias = "cvc")]
+    ComputerVsComputer,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -65,7 +77,7 @@ async fn main() -> Result<()> {
     let conn_kind = ConnKind::from_args(cli.host, cli.join);
     let start_level = cli.start_level;
 
-    run(cli.ai, conn_kind, start_level).await?;
+    run(cli.mode, conn_kind, start_level).await?;
 
     exit_tui_mode()?;
 

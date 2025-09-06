@@ -5,7 +5,7 @@ use strum::IntoEnumIterator;
 use tokio::time::{interval, sleep, Interval, Sleep};
 use num_derive::FromPrimitive;
 
-use crate::{agent, conn::ConnTrait, display::BOARD_DIMENSION, score::{ClearKind, Score}, tetromino::*};
+use crate::{conn::ConnTrait, display::BOARD_DIMENSION, score::{ClearKind, Score}, tetromino::*};
 
 const LOCK_RESET_LIMIT: u8 = 15;
 const LOCK_DURATION: Duration = Duration::from_millis(500);
