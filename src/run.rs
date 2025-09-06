@@ -38,24 +38,7 @@ pub async fn run(mode: Mode, conn_kind: ConnKind, start_level: u32) -> Result<()
         };
     }
 
-    macro_rules! one_player_game_select {
-        ($($branch:tt)*) => {
-            game_select! {
-                _ = display.render_interval.tick() => {
-                    display.render(&vec![player], rtt)?;
-                },
-                _ = &mut player.timers.line_clear_delay, if player.clearing.len() > 0 => {
-                    let _ = player.line_clear();
-                },
-                _ = async {}, if player.lost => {
-                    break;
-                },
-                $($branch)*
-            }
-        }
-    }
-
-    macro_rules! two_player_game_select {
+    macro_rules! opponent_game_select {
         ($opponent:ident, $($branch:tt)*) => {
             game_select! {
                 _ = display.render_interval.tick() => {
@@ -83,13 +66,23 @@ pub async fn run(mode: Mode, conn_kind: ConnKind, start_level: u32) -> Result<()
     match mode {
         Mode::Singleplayer => {
             loop {
-                one_player_game_select!()
+                game_select! {
+                    _ = display.render_interval.tick() => {
+                        display.render(&vec![player], rtt)?;
+                    },
+                    _ = &mut player.timers.line_clear_delay, if player.clearing.len() > 0 => {
+                        let _ = player.line_clear();
+                    },
+                    _ = async {}, if player.lost => {
+                        break;
+                    },
+                }
             }
         },
         Mode::Multiplayer => {
             if let Some(opponent) = game.opponent.as_mut() {
                 loop {
-                    two_player_game_select!(opponent,
+                    opponent_game_select!(opponent,
                         _ = heartbeat_interval.tick(), if conn_kind.is_multiplayer() => {
                             conn.send_ping().await?;
                         },
@@ -135,7 +128,7 @@ pub async fn run(mode: Mode, conn_kind: ConnKind, start_level: u32) -> Result<()
             if let Some(opponent) = game.opponent.as_mut() {
                 agent.evaluate(opponent);
                 loop {
-                    two_player_game_select!(opponent,
+                    opponent_game_select!(opponent,
                         _ = &mut agent_delay => {
                             agent.execute(opponent, &conn).await?;
                             agent_delay.set(sleep(Duration::from_millis(200)));
@@ -144,8 +137,23 @@ pub async fn run(mode: Mode, conn_kind: ConnKind, start_level: u32) -> Result<()
                 }
             }
         },
-        Mode::ComputerVsComputer => { // TODO
-
+        Mode::ComputerVsComputer => {
+            let mut p1_agent = Agent::new();
+            let mut p2_agent = Agent::new();
+            let mut agent_delay = Box::pin(sleep(Duration::ZERO));
+            if let Some(opponent) = game.opponent.as_mut() {
+                p1_agent.evaluate(player);
+                p2_agent.evaluate(opponent);
+                loop {
+                    opponent_game_select!(opponent,
+                        _ = &mut agent_delay => {
+                            p1_agent.execute(player, &conn).await?;
+                            p2_agent.execute(opponent, &conn).await?;
+                            agent_delay.set(sleep(Duration::from_millis(200)));
+                        },
+                    )
+                }
+            }
         },
     }
     Ok(())
