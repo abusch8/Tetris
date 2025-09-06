@@ -30,91 +30,108 @@ pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> 
     };
 
     let player = &mut game.player;
-    let opponent = game.opponent.as_mut().unwrap();
 
-    loop {
-        select! {
-            Some(Ok(event)) = reader.next().fuse() => {
-                handle_game_event(player, &conn, event, display).await?
-            },
-            _ = &mut player.timers.lock_delay, if player.locking => {
-                player.place(&mut conn).await?;
-            },
-            _ = &mut player.timers.line_clear_delay, if (
-                player.clearing.len() > 0
-            ) => {
-                let clear_kind = player.line_clear();
-                if conn_kind.is_multiplayer() {
+    // let players = vec![player];
+
+    macro_rules! game_select {
+        ($($branch:tt)*) => {
+            select! {
+                Some(Ok(event)) = reader.next().fuse() => {
+                    handle_game_event(player, &conn, event, display).await?
+                },
+                // _ = display.render_interval.tick() => {
+                //     display.render(vec![player], rtt)?;
+                // },
+                _ = display.frame_count_interval.tick(), if *config::DISPLAY_FRAME_RATE => {
+                    display.calc_fps();
+                },
+                _ = player.drop_interval.tick() => {
+                    player.drop();
+                },
+                _ = &mut player.timers.lock_delay, if player.locking => {
+                    player.place(&mut conn).await?;
+                },
+                $($branch)*
+            }
+        };
+    }
+
+    if let Some(opponent) = game.opponent.as_mut() {
+        loop {
+            game_select! {
+                _ = display.render_interval.tick() => {
+                    display.render(vec![player, opponent], rtt)?;
+                },
+                _ = &mut player.timers.line_clear_delay, if (
+                    player.clearing.len() > 0
+                ) => {
+                    let clear_kind = player.line_clear();
                     opponent.add_garbage(clear_kind);
-                }
-            },
-            _ = &mut opponent.timers.line_clear_delay, if (
-                (ai || conn_kind.is_multiplayer()) &&
-                opponent.clearing.len() > 0
-            ) => {
-                let clear_kind = opponent.line_clear();
-                player.add_garbage(clear_kind);
-            },
-            _ = &mut agent_delay, if ai => {
-                agent.as_mut().unwrap().execute(opponent, &conn).await?;
-                agent_delay.set(sleep(Duration::from_millis(200)));
-            },
-            _ = player.drop_interval.tick() => {
-                player.drop();
-            },
-            _ = opponent.drop_interval.tick(), if (
-                ai || conn_kind.is_multiplayer()
-            ) => {
-                opponent.drop();
-            },
-            _ = display.render_interval.tick() => {
-                // debug_log!("{:?}", game.player.falling.geometry.center);
-                display.render(vec![player, opponent], rtt)?;
-            },
-            _ = display.frame_count_interval.tick(), if *config::DISPLAY_FRAME_RATE => {
-                display.calc_fps();
-            },
-            _ = heartbeat_interval.tick(), if conn_kind.is_multiplayer() => {
-                conn.send_ping().await?;
-            },
-            Ok((mode, payload)) = conn.recv_udp() => {
-                match mode {
-                    UdpPacketMode::Pos => {
-                        let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
-                        let geometry = Geometry::from_bytes(geometry_bytes);
-                        opponent.set_falling_geometry(geometry);
-                    },
-                }
-            },
-            Ok((mode, payload)) = conn.recv_tcp() => {
-                match mode {
-                    TcpPacketMode::Ping => {
-                        conn.send_pong(payload).await?;
-                    },
-                    TcpPacketMode::Pong => {
-                        let ts_bytes: [u8; 16] = payload[0..16].try_into().unwrap();
-                        let res_ts = u128::from_le_bytes(ts_bytes);
-                        let now_ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
-                        rtt = now_ts.saturating_sub(res_ts);
-                    },
-                    TcpPacketMode::Place => {
-                        let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
-                        let geometry = Geometry::from_bytes(geometry_bytes);
-                        opponent.set_falling_geometry(geometry);
-                        opponent.place(&conn).await?;
-                    },
-                    TcpPacketMode::Hold => {
-                        opponent.hold(&conn).await?;
-                    },
-                    _ => (),
-                }
-            },
-            _ = async {}, if (
-                player.lost || (ai || conn_kind.is_multiplayer()) &&
-                opponent.lost
-            ) => {
-                break;
-            },
+                },
+                _ = opponent.drop_interval.tick() => {
+                    opponent.drop();
+                },
+                _ = &mut opponent.timers.line_clear_delay, if opponent.clearing.len() > 0 => {
+                    let clear_kind = opponent.line_clear();
+                    player.add_garbage(clear_kind);
+                },
+                _ = heartbeat_interval.tick(), if conn_kind.is_multiplayer() => {
+                    conn.send_ping().await?;
+                },
+                Ok((mode, payload)) = conn.recv_udp() => {
+                    match mode {
+                        UdpPacketMode::Pos => {
+                            let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
+                            let geometry = Geometry::from_bytes(geometry_bytes);
+                            opponent.set_falling_geometry(geometry);
+                        },
+                    }
+                },
+                Ok((mode, payload)) = conn.recv_tcp() => {
+                    match mode {
+                        TcpPacketMode::Ping => {
+                            conn.send_pong(payload).await?;
+                        },
+                        TcpPacketMode::Pong => {
+                            let ts_bytes: [u8; 16] = payload[0..16].try_into().unwrap();
+                            let res_ts = u128::from_le_bytes(ts_bytes);
+                            let now_ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+                            rtt = now_ts.saturating_sub(res_ts);
+                        },
+                        TcpPacketMode::Place => {
+                            let geometry_bytes: [u8; 41] = payload[0..41].try_into().unwrap();
+                            let geometry = Geometry::from_bytes(geometry_bytes);
+                            opponent.set_falling_geometry(geometry);
+                            opponent.place(&conn).await?;
+                        },
+                        TcpPacketMode::Hold => {
+                            opponent.hold(&conn).await?;
+                        },
+                        _ => (),
+                    }
+                },
+                _ = &mut agent_delay, if ai => {
+                    agent.as_mut().unwrap().execute(opponent, &conn).await?;
+                    agent_delay.set(sleep(Duration::from_millis(200)));
+                },
+                _ = async {}, if player.lost || opponent.lost => {
+                    break;
+                },
+            }
+        }
+    } else {
+        loop {
+            game_select! {
+                _ = display.render_interval.tick() => {
+                    display.render(vec![player], rtt)?;
+                },
+                _ = &mut player.timers.line_clear_delay, if player.clearing.len() > 0 => {
+                    let _ = player.line_clear();
+                },
+                _ = async {}, if player.lost => {
+                    break;
+                },
+            }
         }
     }
     Ok(())

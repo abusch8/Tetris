@@ -43,7 +43,7 @@ impl Display {
         return text_map;
     }
 
-    fn init_text_overlays(&self, players: &Vec<&Player>, rtt: u128) -> HashMap<(u16, u16), StyledContent<char>> {
+    fn init_text_overlays(&self, players: &Vec<&mut Player>, rtt: u128) -> HashMap<(u16, u16), StyledContent<char>> {
         let mut text_overlays = Vec::new();
 
         for (i, board_x) in self.board_x.iter().enumerate() {
@@ -184,7 +184,7 @@ impl Display {
         Ok(())
     }
 
-    pub fn construct_frame(&self, players: &Vec<&Player>, rtt: u128) -> Vec<Vec<StyledContent<char>>> {
+    pub fn construct_frame(&self, players: &Vec<&mut Player>, rtt: u128) -> Vec<Vec<StyledContent<char>>> {
         let text_map = self.init_text_overlays(players, rtt);
         let width = self.terminal_size.0 as usize;
         let height = self.terminal_size.1 as usize;
@@ -205,7 +205,7 @@ impl Display {
         frame
     }
 
-    pub fn render(&mut self, players: Vec<&Player>, rtt: u128) -> Result<()> {
+    pub fn render(&mut self, players: Vec<&mut Player>, rtt: u128) -> Result<()> {
         let frame = self.construct_frame(&players, rtt);
 
         for (i, row) in frame.iter().enumerate() {
@@ -223,7 +223,7 @@ impl Display {
     }
 
 
-    fn render_board(&self, players: &Vec<&Player>, x: u16, y: u16) -> Option<StyledContent<char>> {
+    fn render_board(&self, players: &Vec<&mut Player>, x: u16, y: u16) -> Option<StyledContent<char>> {
         let mut content = None;
 
         for (i, board_x) in self.board_x.iter().enumerate() {
@@ -253,7 +253,7 @@ impl Display {
         content
     }
 
-    fn render_tetromino(&self, players: &Vec<&Player>, x: u16, y: u16) -> Option<StyledContent<char>> {
+    fn render_tetromino(&self, players: &Vec<&mut Player>, x: u16, y: u16) -> Option<StyledContent<char>> {
         let mut content = None;
 
         for (i, board_x) in self.board_x.iter().enumerate() {
