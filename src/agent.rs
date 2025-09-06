@@ -12,43 +12,39 @@ pub struct Agent {
 }
 
 impl Agent {
-
     pub fn new() -> Self {
-        Agent {
-            goal: None
-        }
+        Agent { goal: None }
     }
 
     fn scan(player: &Player) -> Vec<Tetromino> {
         let mut valid_plays = Vec::new();
 
-        let mut t = Tetromino::new(player.falling.variant);
+        let mut tetromino = Tetromino::new(player.falling.variant);
 
-        while t.geometry.center.1 > 0 {
-            t.geometry.transform(0, -1);
+        while tetromino.geometry.center.1 > 0 {
+            tetromino.geometry.transform(0, -1);
         }
-        while t.geometry.center.0 > 0 {
-            t.geometry.transform(-1, 0);
+        while tetromino.geometry.center.0 > 0 {
+            tetromino.geometry.transform(-1, 0);
         }
 
         for i in 0..player.stack.len() {
             for _ in 0..player.stack.len() {
                 for _ in 0..4 {
-                    t.geometry.rotate(RotationDirection::Clockwise);
-                    if check_valid_play(&t, &player.stack) {
-                        valid_plays.push(t.clone());
+                    tetromino.geometry.rotate(RotationDirection::Clockwise);
+                    if check_valid_play(&tetromino, &player.stack) {
+                        valid_plays.push(tetromino.clone());
                     }
                 }
-                t.geometry.transform(if i % 2 == 0 { 1 } else { -1 }, 0);
+                tetromino.geometry.transform(if i % 2 == 0 { 1 } else { -1 }, 0);
             }
-            t.geometry.transform(0, 1);
+            tetromino.geometry.transform(0, 1);
         }
 
         valid_plays
     }
 
     pub fn evaluate(&mut self, player: &Player) {
-
         let valid_plays = Self::scan(player);
 
         let mut scores: Vec<(Tetromino, i32)> = Vec::new();
@@ -58,7 +54,6 @@ impl Agent {
             stack.add(&play);
             let mut score = 0;
             score += stack.evaluate_gaps();
-            score += stack.evaluate_roughness();
             score += stack.evaluate_height();
             scores.push((play, score));
 
@@ -74,7 +69,6 @@ impl Agent {
     pub async fn execute(&mut self, player: &mut Player, lock_delay: &mut Pin<&mut Sleep>, line_clear_delay: &mut Pin<&mut Sleep>, conn: &Box<dyn ConnTrait>) -> Result<()> {
 
         if let Some(goal) = &self.goal {
-
             if player.falling.geometry.direction != goal.geometry.direction {
                 player.falling.geometry.rotate(RotationDirection::Clockwise);
             } else if player.falling.geometry.center.0 > goal.geometry.center.0 {
@@ -85,7 +79,6 @@ impl Agent {
                 player.hard_drop(line_clear_delay, conn).await?;
                 self.evaluate(player);
             }
-
         }
 
         Ok(())

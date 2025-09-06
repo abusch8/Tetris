@@ -90,11 +90,6 @@ impl Stack {
         score
     }
 
-    pub fn evaluate_roughness(&self) -> i32 {
-
-        0
-    }
-
     pub fn evaluate_height(&self) -> i32 {
         self.iter()
             .enumerate()

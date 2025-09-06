@@ -117,7 +117,7 @@ pub async fn run(ai: bool, conn_kind: ConnKind, start_level: u32) -> Result<()> 
                 }
             },
             _ = async {}, if (
-                game.players.main.lost || conn_kind.is_multiplayer() &&
+                game.players.main.lost || (ai || conn_kind.is_multiplayer()) &&
                 game.players.opponent.as_ref().unwrap().lost
             ) => {
                 break;
