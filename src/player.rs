@@ -140,6 +140,11 @@ impl Bag {
     }
 }
 
+pub struct PlayerTimers {
+    pub line_clear_delay: Pin<Box<Sleep>>,
+    pub lock_delay: Pin<Box<Sleep>>,
+}
+
 pub struct Player {
     pub kind: PlayerKind,
     pub seed: StdRng,
@@ -156,15 +161,24 @@ pub struct Player {
     pub lock_reset_count: u8,
     pub last_action_was_rotate: bool,
     pub drop_interval: Interval,
+    pub timers: PlayerTimers,
 }
 
 impl Player {
     pub fn new(kind: PlayerKind, start_level: u32, seed: u64) -> Self {
         let mut seed = StdRng::seed_from_u64(seed);
         let mut bag = Bag::new(&mut seed);
+
         let stack = Stack::new();
+
         let mut falling = bag.get_next(&mut seed);
         falling.start_pos_transform(&stack);
+
+        let timers = PlayerTimers {
+            line_clear_delay: Box::pin(sleep(Duration::ZERO)),
+            lock_delay: Box::pin(sleep(Duration::ZERO)),
+        };
+
         Player {
             kind,
             seed,
@@ -181,6 +195,7 @@ impl Player {
             lock_reset_count: 0,
             last_action_was_rotate: false,
             drop_interval: Player::calc_drop_interval(start_level),
+            timers,
         }
     }
 
@@ -207,7 +222,7 @@ impl Player {
         };
     }
 
-    pub fn mark_clear(&mut self, line_clear_delay: &mut Pin<&mut Sleep>) {
+    pub fn mark_clear(&mut self) {
         self.clearing = HashSet::new();
         for (i, row) in self.stack.iter().enumerate() {
             if row.iter().all(|cell| cell.is_some()) {
@@ -217,7 +232,7 @@ impl Player {
         if self.clearing.is_empty() {
             self.score.combo = -1;
         } else {
-            line_clear_delay.set(sleep(LINE_CLEAR_DURATION));
+            self.timers.line_clear_delay.set(sleep(LINE_CLEAR_DURATION));
         }
     }
 
@@ -265,9 +280,9 @@ impl Player {
         self.update_ghost();
     }
 
-    fn reset_lock_timer(&mut self, lock_delay: &mut Pin<&mut Sleep>) {
+    fn reset_lock_timer(&mut self) {
         if self.lock_reset_count < LOCK_RESET_LIMIT {
-            lock_delay.set(sleep(LOCK_DURATION));
+            self.timers.lock_delay.set(sleep(LOCK_DURATION));
         }
     }
 
@@ -298,18 +313,16 @@ impl Player {
     pub async fn shift(
         &mut self,
         direction: ShiftDirection,
-        lock_delay: &mut Pin<&mut Sleep>,
-        line_clear_delay: &mut Pin<&mut Sleep>,
         conn: &Box<dyn ConnTrait>,
     ) -> Result<()> {
         match self.kind {
             PlayerKind::Local => {
                 if self.lock_reset_count == LOCK_RESET_LIMIT {
-                    self.place(line_clear_delay, conn).await?;
+                    self.place(conn).await?;
                 }
                 self.handle_shift(direction);
                 self.lock_reset_count += 1;
-                self.reset_lock_timer(lock_delay);
+                self.reset_lock_timer();
                 conn.send_pos(&self).await?;
             },
             PlayerKind::Remote | PlayerKind::Ai=> {
@@ -320,12 +333,7 @@ impl Player {
         Ok(())
     }
 
-    pub async fn rotate(
-        &mut self,
-        direction: RotationDirection,
-        lock_delay: &mut Pin<&mut Sleep>,
-        conn: &Box<dyn ConnTrait>,
-    ) -> Result<()> {
+    pub async fn rotate(&mut self, direction: RotationDirection, conn: &Box<dyn ConnTrait>) -> Result<()> {
         let mut rotated = self.falling.clone();
         rotated.geometry.rotate(direction);
 
@@ -351,7 +359,7 @@ impl Player {
                 self.falling = rotated;
                 self.lock_reset_count += 1;
                 self.update_ghost();
-                self.reset_lock_timer(lock_delay);
+                self.reset_lock_timer();
 
                 if let PlayerKind::Local = self.kind {
                     conn.send_pos(self).await?;
@@ -361,18 +369,13 @@ impl Player {
 
                 return Ok(())
             }
-
             rotated.geometry.transform(offset_x, offset_y);
         }
 
         Ok(())
     }
 
-    pub async fn place(
-        &mut self,
-        line_clear_delay: &mut Pin<&mut Sleep>,
-        conn: &Box<dyn ConnTrait>,
-    ) -> Result<()> {
+    pub async fn place(&mut self, conn: &Box<dyn ConnTrait>) -> Result<()> {
         if !self.falling.hitting_bottom(&self.stack) {
             return Ok(())
         }
@@ -382,7 +385,7 @@ impl Player {
             return Ok(())
         }
 
-        self.mark_clear(line_clear_delay);
+        self.mark_clear();
 
         if let PlayerKind::Local = self.kind {
             conn.send_place(self).await?;
@@ -423,21 +426,17 @@ impl Player {
         Ok(())
     }
 
-    pub fn drop(&mut self, lock_delay: &mut Pin<&mut Sleep>) {
+    pub fn drop(&mut self) {
         if !self.falling.hitting_bottom(&self.stack) {
             self.falling.geometry.transform(0, -1);
             self.lock_reset_count = 0;
-            self.reset_lock_timer(lock_delay);
+            self.reset_lock_timer();
         }
         self.locking = self.falling.hitting_bottom(&self.stack);
     }
 
-    pub async fn soft_drop(
-        &mut self,
-        lock_delay: &mut Pin<&mut Sleep>,
-        conn: &Box<dyn ConnTrait>,
-    ) -> Result<()> {
-        self.drop(lock_delay);
+    pub async fn soft_drop(&mut self, conn: &Box<dyn ConnTrait>) -> Result<()> {
+        self.drop();
         if !self.falling.hitting_bottom(&self.stack) {
             self.score.score += 1;
         }
@@ -445,16 +444,12 @@ impl Player {
         Ok(())
     }
 
-    pub async fn hard_drop(
-        &mut self,
-        line_clear_delay: &mut Pin<&mut Sleep>,
-        conn: &Box<dyn ConnTrait>,
-    ) -> Result<()> {
+    pub async fn hard_drop(&mut self, conn: &Box<dyn ConnTrait>) -> Result<()> {
         while !self.falling.hitting_bottom(&self.stack) {
             self.falling.geometry.transform(0, -1);
             self.score.score += 2;
         }
-        self.place(line_clear_delay, conn).await?;
+        self.place(conn).await?;
         Ok(())
     }
 }

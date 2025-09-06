@@ -66,17 +66,17 @@ impl Agent {
         self.goal = Some(scores[0].0.clone());
     }
 
-    pub async fn execute(&mut self, player: &mut Player, lock_delay: &mut Pin<&mut Sleep>, line_clear_delay: &mut Pin<&mut Sleep>, conn: &Box<dyn ConnTrait>) -> Result<()> {
+    pub async fn execute(&mut self, player: &mut Player, conn: &Box<dyn ConnTrait>) -> Result<()> {
 
         if let Some(goal) = &self.goal {
             if player.falling.geometry.direction != goal.geometry.direction {
                 player.falling.geometry.rotate(RotationDirection::Clockwise);
             } else if player.falling.geometry.center.0 > goal.geometry.center.0 {
-                player.shift(ShiftDirection::Left, lock_delay, line_clear_delay, conn).await?;
+                player.shift(ShiftDirection::Left, conn).await?;
             } else if player.falling.geometry.center.0 < goal.geometry.center.0 {
-                player.shift(ShiftDirection::Right, lock_delay, line_clear_delay, conn).await?;
+                player.shift(ShiftDirection::Right, conn).await?;
             } else {
-                player.hard_drop(line_clear_delay, conn).await?;
+                player.hard_drop(conn).await?;
                 self.evaluate(player);
             }
         }

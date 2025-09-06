@@ -5,7 +5,7 @@ use crossterm::{
 use tokio::time::{interval, Interval};
 use std::fmt::Write as FmtWrite;
 
-use crate::{color::get_board_color, config, debug, game::Game};
+use crate::{color::get_board_color, config, debug, game::Game, player::Player};
 
 pub type Dimension = (i32, i32);
 
@@ -43,11 +43,11 @@ impl Display {
         return text_map;
     }
 
-    fn init_text_overlays(&self, game: &Game, rtt: u128) -> HashMap<(u16, u16), StyledContent<char>> {
+    fn init_text_overlays(&self, players: &Vec<&Player>, rtt: u128) -> HashMap<(u16, u16), StyledContent<char>> {
         let mut text_overlays = Vec::new();
 
         for (i, board_x) in self.board_x.iter().enumerate() {
-            let combo = game.players[i].score.combo;
+            let combo = players[i].score.combo;
             let combo_text = if combo > 0 { format!("x{}", combo) } else { "".into() };
             text_overlays.extend([
                 TextOverlay {
@@ -56,7 +56,7 @@ impl Display {
                     content: String::from("TETRIS"),
                     style: ContentStyle::new()
                        .attribute(Attribute::Bold)
-                       .with(get_board_color(&game.players[i], 0)),
+                       .with(get_board_color(players[i], 0)),
                 },
                 TextOverlay {
                     x: board_x.1 + 1,
@@ -73,19 +73,19 @@ impl Display {
                 TextOverlay {
                     x: board_x.1 + 1,
                     y: 17,
-                    content: format!("SCORE: {} {}", game.players[i].score.score, combo_text),
+                    content: format!("SCORE: {} {}", players[i].score.score, combo_text),
                     style: ContentStyle::new(),
                 },
                 TextOverlay {
                     x: board_x.1 + 1,
                     y: 18,
-                    content: format!("LEVEL: {}", game.players[i].score.level),
+                    content: format!("LEVEL: {}", players[i].score.level),
                     style: ContentStyle::new(),
                 },
                 TextOverlay {
                     x: board_x.1 + 1,
                     y: 19,
-                    content: format!("LINES: {}", game.players[i].score.lines),
+                    content: format!("LINES: {}", players[i].score.lines),
                     style: ContentStyle::new(),
                 },
             ]);
@@ -184,8 +184,8 @@ impl Display {
         Ok(())
     }
 
-    pub fn construct_frame(&self, game: &Game, rtt: u128) -> Vec<Vec<StyledContent<char>>> {
-        let text_map = self.init_text_overlays(game, rtt);
+    pub fn construct_frame(&self, players: &Vec<&Player>, rtt: u128) -> Vec<Vec<StyledContent<char>>> {
+        let text_map = self.init_text_overlays(players, rtt);
         let width = self.terminal_size.0 as usize;
         let height = self.terminal_size.1 as usize;
         let mut frame = Vec::with_capacity(height);
@@ -195,8 +195,8 @@ impl Display {
                 let cell = text_map
                     .get(&(x as u16, y as u16))
                     .cloned()
-                    .or(self.render_tetromino(game, x as u16, y as u16))
-                    .or(self.render_board(game, x as u16, y as u16))
+                    .or(self.render_tetromino(players, x as u16, y as u16))
+                    .or(self.render_board(players, x as u16, y as u16))
                     .unwrap_or(StyledContent::new(ContentStyle::new(), ' '));
                 row.push(cell);
             }
@@ -205,8 +205,8 @@ impl Display {
         frame
     }
 
-    pub fn render(&mut self, game: &Game, rtt: u128) -> Result<()> {
-        let frame = self.construct_frame(game, rtt);
+    pub fn render(&mut self, players: Vec<&Player>, rtt: u128) -> Result<()> {
+        let frame = self.construct_frame(&players, rtt);
 
         for (i, row) in frame.iter().enumerate() {
             self.stdout.queue(MoveTo(0, i as u16))?;
@@ -223,7 +223,7 @@ impl Display {
     }
 
 
-    fn render_board(&self, game: &Game, x: u16, y: u16) -> Option<StyledContent<char>> {
+    fn render_board(&self, players: &Vec<&Player>, x: u16, y: u16) -> Option<StyledContent<char>> {
         let mut content = None;
 
         for (i, board_x) in self.board_x.iter().enumerate() {
@@ -245,7 +245,7 @@ impl Display {
                         '.'
                     } else {
                         ' '
-                    }.with(get_board_color(&game.players[i], y))
+                    }.with(get_board_color(players[i], y))
                 );
             }
         }
@@ -253,42 +253,42 @@ impl Display {
         content
     }
 
-    fn render_tetromino(&self, game: &Game, x: u16, y: u16) -> Option<StyledContent<char>> {
+    fn render_tetromino(&self, players: &Vec<&Player>, x: u16, y: u16) -> Option<StyledContent<char>> {
         let mut content = None;
 
         for (i, board_x) in self.board_x.iter().enumerate() {
             if x > board_x.0 && x < board_x.1 - 1 && y > self.board_y.0 && y < self.board_y.1 - 1 {
-                if let Some(ghost) = &game.players[i].ghost {
+                if let Some(ghost) = &players[i].ghost {
                     if ghost.at_pos(x, self.board_y.1 - y - 2, board_x.0, 0) {
-                        content = Some('░'.with(game.players[i].falling.color));
+                        content = Some('░'.with(players[i].falling.color));
                     }
                 }
 
-                if game.players[i].falling.at_pos(x, self.board_y.1 - y - 2, board_x.0, 0) {
-                    content = Some(if game.players[i].locking {
-                        '▓'.with(game.players[i].falling.color)
+                if players[i].falling.at_pos(x, self.board_y.1 - y - 2, board_x.0, 0) {
+                    content = Some(if players[i].locking {
+                        '▓'.with(players[i].falling.color)
                     } else {
-                        ' '.on(game.players[i].falling.color)
+                        ' '.on(players[i].falling.color)
                     });
                 }
 
                 let j = (self.board_y.1 - 2 - y) as usize;
                 let k = ((x - board_x.0 - 1) / 2) as usize;
 
-                if let Some(color) = game.players[i].stack[j][k] {
-                    content = Some(if game.players[i].clearing.get(&j).is_some() {
+                if let Some(color) = players[i].stack[j][k] {
+                    content = Some(if players[i].clearing.get(&j).is_some() {
                         '▓'.with(Color::White)
                     } else {
                         ' '.on(color)
                     })
                 }
             }
-            if let Some(holding) = &game.players[i].holding {
+            if let Some(holding) = &players[i].holding {
                 if holding.at_pos(x, y, board_x.0 - 11, 4) {
                     content = Some(' '.on(holding.color));
                 }
             }
-            for (i, next) in game.players[i].bag.next.iter().enumerate() {
+            for (i, next) in players[i].bag.next.iter().enumerate() {
                 if next.at_pos(x, y, board_x.1, ((i as u16 + 1) * 3) + 1) {
                     content = Some(' '.on(next.color));
                 }

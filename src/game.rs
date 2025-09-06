@@ -4,7 +4,9 @@ use rand::{thread_rng, Rng};
 use crate::{conn::{ConnKind, ConnTrait, TcpPacketMode}, player::{Player, PlayerKind}};
 
 pub struct Game {
-    pub players: Players,
+    // pub players: Players,
+    pub player: Player,
+    pub opponent: Option<Player>,
 }
 
 pub struct GameInfo {
@@ -12,22 +14,22 @@ pub struct GameInfo {
     pub seeds: Vec<u64>,
 }
 
-pub struct Players {
-    pub main: Player,
-    pub opponent: Option<Player>,
-}
-
-impl Index<usize> for Players {
-    type Output = Player;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        match index {
-            0 => &self.main,
-            1 => &self.opponent.as_ref().unwrap_or_else(|| panic!("Multiplayer not enabled")),
-            _ => panic!("Index out of bounds"),
-        }
-    }
-}
+// pub struct Players {
+//     pub main: Player,
+//     pub opponent: Option<Player>,
+// }
+//
+// impl Index<usize> for Players {
+//     type Output = Player;
+//
+//     fn index(&self, index: usize) -> &Self::Output {
+//         match index {
+//             0 => &self.main,
+//             1 => &self.opponent.as_ref().unwrap_or_else(|| panic!("Multiplayer not enabled")),
+//             _ => panic!("Index out of bounds"),
+//         }
+//     }
+// }
 
 impl Game {
     pub async fn start(ai: bool, conn_kind: ConnKind, start_level: u32, conn: &mut Box<dyn ConnTrait>) -> Result<Self> {
@@ -35,7 +37,7 @@ impl Game {
 
         let GameInfo { start_level, seeds } = GameInfo::sync(start_level, conn_kind, conn).await?;
 
-        let main = Player::new(PlayerKind::Local, start_level, seeds[seed_idx ^ 1]);
+        let player = Player::new(PlayerKind::Local, start_level, seeds[seed_idx ^ 1]);
         let opponent = if conn_kind.is_multiplayer() {
             Some(Player::new(PlayerKind::Remote, start_level, seeds[seed_idx]))
         } else if ai {
@@ -44,10 +46,10 @@ impl Game {
             None
         };
 
-        let mut game = Game { players: Players { main, opponent } };
+        let mut game = Game { player, opponent };
 
-        game.players.main.update_ghost();
-        if let Some(remote) = &mut game.players.opponent {
+        game.player.update_ghost();
+        if let Some(remote) = &mut game.opponent {
             remote.update_ghost();
         }
 
