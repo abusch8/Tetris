@@ -9,7 +9,7 @@ use lazy_static::lazy_static;
 use crate::Cli;
 
 lazy_static! {
-    pub static ref CLI: Cli = Cli::parse();
+    pub static ref ARGS: Cli = Cli::parse();
 
     static ref CONFIG_PATH: String = env::var("TETRIS_CONFIG_PATH").unwrap_or(format!("{}/.config/tetris.ini", home_dir().unwrap().to_str().unwrap()));
     static ref CONFIG: Ini = Ini::load_from_file(&*CONFIG_PATH).unwrap_or(Ini::new());
@@ -34,19 +34,19 @@ lazy_static! {
         .parse()
         .unwrap_or_else(|_| panic!("Invalid display_ping display config value"));
 
-    pub static ref PARTY_MODE: bool = CLI.party || CONFIG
+    pub static ref PARTY_MODE: bool = ARGS.party || CONFIG
         .get_from_or(Some("display"), "party_mode", "false")
         .parse()
         .unwrap_or_else(|_| panic!("Invalid party_mode display config value"));
 
-    pub static ref BIND_ADDR: SocketAddr = match &CLI.bind_addr {
+    pub static ref BIND_ADDR: SocketAddr = match &ARGS.bind_addr {
         Some(addr) => addr,
         None => CONFIG.get_from_or(Some("multiplayer"), "bind_addr", "0.0.0.0:12000"),
     }
     .parse::<SocketAddr>()
     .unwrap_or_else(|_| panic!("Invalid bind_addr format"));
 
-    pub static ref CONN_ADDR: SocketAddr = match &CLI.conn_addr {
+    pub static ref CONN_ADDR: SocketAddr = match &ARGS.conn_addr {
         Some(addr) => addr,
         None => CONFIG.get_from_or(Some("multiplayer"), "conn_addr", "0.0.0.0:12000"),
     }

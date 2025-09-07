@@ -37,7 +37,7 @@ static O_OFFSETS: [[(i32, i32); 5]; 4] = [
 pub enum ShiftDirection { Left, Right }
 
 #[derive(Copy, Clone)]
-pub enum PlayerKind { Ai, Local, Remote }
+pub enum PlayerKind { Computer, Local, Remote }
 
 pub struct Stack(pub Vec<Vec<Option<Color>>>);
 
@@ -325,7 +325,7 @@ impl Player {
                 self.reset_lock_timer();
                 conn.send_pos(&self).await?;
             },
-            PlayerKind::Remote | PlayerKind::Ai=> {
+            PlayerKind::Remote | PlayerKind::Computer=> {
                 self.handle_shift(direction);
             },
         }

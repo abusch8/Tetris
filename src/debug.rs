@@ -10,7 +10,7 @@ use crate::config;
 
 lazy_static! {
     pub static ref DEBUGGER: RwLock<Option<Debugger>> = RwLock::new(
-        if config::CLI.debug {
+        if config::ARGS.debug {
             Some(Debugger::new())
         } else {
             None

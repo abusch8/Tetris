@@ -20,7 +20,7 @@ impl Game {
         let GameInfo { start_level, seeds } = GameInfo::sync(start_level, conn_kind, conn).await?;
 
         let player = Player::new(if matches!(mode, Mode::ComputerVsComputer) {
-            PlayerKind::Ai
+            PlayerKind::Computer
         } else {
             PlayerKind::Local
         }, start_level, seeds[seed_idx ^ 1]);
@@ -33,7 +33,7 @@ impl Game {
                 Some(Player::new(PlayerKind::Remote, start_level, seeds[seed_idx]))
             },
             Mode::PlayerVsComputer | Mode::ComputerVsComputer => {
-                Some(Player::new(PlayerKind::Ai, start_level, thread_rng().gen::<u64>()))
+                Some(Player::new(PlayerKind::Computer, start_level, thread_rng().gen::<u64>()))
             },
         };
 
