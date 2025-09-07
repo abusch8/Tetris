@@ -26,9 +26,9 @@ mod tetromino;
 pub struct Cli {
     #[arg(value_enum, default_value_t = Mode::Singleplayer)]
     mode: Mode,
-    #[arg(long)]
+    #[arg(long, short = 'H', conflicts_with = "join")]
     host: bool,
-    #[arg(long)]
+    #[arg(long, short = 'J', conflicts_with = "host")]
     join: bool,
     /// [default: 0.0.0.0:12000]
     #[arg(long)]
@@ -40,7 +40,7 @@ pub struct Cli {
     start_level: u32,
     #[arg(long)]
     party: bool,
-    #[arg(long)]
+    #[arg(long, short)]
     debug: bool,
 }
 
@@ -70,14 +70,14 @@ pub enum Mode {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let args = Cli::parse();
 
     enter_tui_mode()?;
 
-    let conn_kind = ConnKind::from_args(cli.host, cli.join);
-    let start_level = cli.start_level;
+    let conn_kind = ConnKind::from_args(&args);
+    let start_level = args.start_level;
 
-    run(cli.mode, conn_kind, start_level).await?;
+    run(args.mode, conn_kind, start_level).await?;
 
     exit_tui_mode()?;
 

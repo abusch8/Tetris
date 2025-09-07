@@ -6,7 +6,7 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use tokio::{net::{TcpListener, TcpStream, UdpSocket}, select, time::interval};
 
-use crate::{config, debug_log, display::Display, event::handle_conn_event, game::GameInfo, player::Player};
+use crate::{config, debug_log, display::Display, event::handle_conn_event, game::GameInfo, player::Player, Cli, Mode};
 
 #[derive(FromPrimitive, ToPrimitive)]
 pub enum UdpPacketMode {
@@ -30,21 +30,16 @@ pub enum ConnKind {
 }
 
 impl ConnKind {
-    pub fn from_args(is_host: bool, is_client: bool) -> Self {
-        match (is_host, is_client) {
-            (true,  true ) |
-            (true,  false) => ConnKind::Host,
-            (false, true ) => ConnKind::Client,
-            (false, false) => ConnKind::Empty,
+    pub fn from_args(args: &Cli) -> Self {
+        if matches!(args.mode, Mode::Multiplayer) {
+            if args.join {
+                ConnKind::Client
+            } else {
+                ConnKind::Host
+            }
+        } else {
+            ConnKind::Empty
         }
-    }
-
-    pub fn is_multiplayer(self) -> bool {
-        matches!(self, ConnKind::Host | ConnKind::Client)
-    }
-
-    pub fn is_host(self) -> bool {
-        matches!(self, ConnKind::Host | ConnKind::Empty)
     }
 }
 

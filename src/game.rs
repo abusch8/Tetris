@@ -15,7 +15,7 @@ pub struct GameInfo {
 
 impl Game {
     pub async fn start(mode: Mode, conn_kind: ConnKind, start_level: u32, conn: &mut Box<dyn ConnTrait>) -> Result<Self> {
-        let seed_idx = conn_kind.is_host() as usize;
+        let seed_idx = matches!(conn_kind, ConnKind::Host | ConnKind::Empty) as usize;
 
         let GameInfo { start_level, seeds } = GameInfo::sync(start_level, conn_kind, conn).await?;
 
@@ -68,7 +68,7 @@ impl GameInfo {
         GameInfo { start_level, seeds: vec![p1_seed, p2_seed] }
     }
 
-    async fn sync(start_level: u32, conn_kind: ConnKind, conn: &Box<dyn ConnTrait>) -> Result<GameInfo> {
+    async fn sync(start_level: u32, conn_kind: ConnKind, conn: &Box<dyn ConnTrait>) -> Result<Self> {
         match conn_kind {
             ConnKind::Host => {
                 let p1_seed = thread_rng().gen::<u64>();

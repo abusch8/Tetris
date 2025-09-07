@@ -83,7 +83,7 @@ pub async fn run(mode: Mode, conn_kind: ConnKind, start_level: u32) -> Result<()
             if let Some(opponent) = game.opponent.as_mut() {
                 loop {
                     opponent_game_select!(opponent,
-                        _ = heartbeat_interval.tick(), if conn_kind.is_multiplayer() => {
+                        _ = heartbeat_interval.tick() => {
                             conn.send_ping().await?;
                         },
                         Ok((mode, payload)) = conn.recv_udp() => {
