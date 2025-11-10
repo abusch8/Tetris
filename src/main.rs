@@ -21,6 +21,18 @@ mod run;
 mod score;
 mod tetromino;
 
+#[derive(ValueEnum, Clone, Copy)]
+pub enum Mode {
+    #[clap(alias = "s")]
+    Singleplayer,
+    #[clap(alias = "m")]
+    Multiplayer,
+    #[clap(alias = "pvc")]
+    PlayerVsComputer,
+    #[clap(alias = "cvc")]
+    ComputerVsComputer,
+}
+
 #[derive(Parser)]
 #[command(version)]
 pub struct Cli {
@@ -54,18 +66,6 @@ pub fn exit_tui_mode() -> Result<()> {
     execute!(stdout(), Show, Clear(ClearType::All))?;
     disable_raw_mode()?;
     Ok(())
-}
-
-#[derive(ValueEnum, Clone, Copy)]
-pub enum Mode {
-    #[clap(alias = "s")]
-    Singleplayer,
-    #[clap(alias = "m")]
-    Multiplayer,
-    #[clap(alias = "pvc")]
-    PlayerVsComputer,
-    #[clap(alias = "cvc")]
-    ComputerVsComputer,
 }
 
 #[tokio::main]

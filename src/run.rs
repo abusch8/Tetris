@@ -14,7 +14,7 @@ pub async fn run(mode: Mode, conn_kind: ConnKind, start_level: u32) -> Result<()
     let mut rtt = 0;
 
     let mut conn = Conn::establish_connection(conn_kind, display).await?;
-    let game = &mut Game::start(mode, conn_kind, start_level, &mut conn).await?;
+    let game = &mut Game::start(mode, start_level, conn_kind, &mut conn).await?;
 
     let player = &mut game.player;
 
