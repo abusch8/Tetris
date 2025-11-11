@@ -1,11 +1,9 @@
-use std::{collections::HashSet, io::Result, mem::replace, ops::{Deref, DerefMut}, pin::Pin, time::Duration};
-use crossterm::style::Color;
-use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
-use strum::IntoEnumIterator;
+use std::{collections::HashSet, io::Result, pin::Pin, time::Duration};
+use rand::{rngs::StdRng, SeedableRng};
 use tokio::time::{interval, sleep, Interval, Sleep};
 use num_derive::FromPrimitive;
 
-use crate::{conn::ConnTrait, display::BOARD_DIMENSION, score::{ClearKind, Score}, tetromino::*};
+use crate::{bag::Bag, conn::ConnTrait, score::{ClearKind, Score}, stack::Stack, tetromino::*};
 
 const LOCK_RESET_LIMIT: u8 = 15;
 const LOCK_DURATION: Duration = Duration::from_millis(500);
@@ -38,107 +36,6 @@ pub enum ShiftDirection { Left, Right }
 
 #[derive(Copy, Clone)]
 pub enum PlayerKind { Computer, Local, Remote }
-
-pub struct Stack(pub Vec<Vec<Option<Color>>>);
-
-impl Stack {
-    pub fn new() -> Self {
-        Stack(vec![vec![None; BOARD_DIMENSION.0 as usize]; BOARD_DIMENSION.1 as usize])
-    }
-
-    pub fn line_clear(&mut self, clearing: &HashSet<usize>) { // TODO refactor
-        let stack = replace(self, Stack(Vec::new()));
-
-        for (i, row) in stack.clone().into_iter().enumerate() {
-            if clearing.get(&i).is_none() {
-                self.push(row);
-            }
-        }
-
-        self.extend(vec![vec![None; BOARD_DIMENSION.0 as usize]; clearing.len()]);
-    }
-
-    pub fn add(&mut self, tetromino: &Tetromino) -> bool {
-        for position in tetromino.geometry.shape.iter() {
-            if position.1 > BOARD_DIMENSION.1 - 1 {
-                return false;
-            }
-            self[position.1 as usize][position.0 as usize] = Some(tetromino.color);
-        }
-        true
-    }
-
-    pub fn add_garbage(&mut self, clear_kind: ClearKind, seed: &mut StdRng) {
-        let hole = seed.gen_range(0..10);
-        let line = (0..10).map(|i| if i == hole { None } else { Some(Color::White) }).collect();
-        let garbage = vec![line; clear_kind.garbage_line_count()];
-        self.splice(0..0, garbage);
-    }
-
-    pub fn evaluate_gaps(&self) -> i32 {
-        let mut score = 0;
-
-        for row in self.iter() {
-            let mut x = 0;
-            for k in row.iter() {
-                if k.is_some() {
-                    x += 1;
-                }
-                score += x / 10
-            }
-        }
-        score
-    }
-
-    pub fn evaluate_height(&self) -> i32 {
-        self.iter()
-            .enumerate()
-            .find(|(_, row)| row.iter().any(|k| k.is_some()))
-            .map(|(i, _)| i)
-            .unwrap_or(self.len()) as i32
-    }
-}
-
-impl Deref for Stack {
-    type Target = Vec<Vec<Option<Color>>>;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-
-impl DerefMut for Stack {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
-}
-
-pub struct Bag {
-    pub next: Vec<Tetromino>,
-    pub rest: Vec<Tetromino>,
-}
-
-impl Bag {
-    fn new(seed: &mut StdRng) -> Self {
-        let mut bag = Bag::rand_bag_gen(seed);
-        Bag {
-            next: bag.split_off(bag.len() - 3),
-            rest: bag,
-        }
-    }
-
-    fn rand_bag_gen(seed: &mut StdRng) -> Vec<Tetromino> {
-        let mut bag = TetrominoVariant::iter()
-            .map(|variant| Tetromino::new(variant))
-            .collect::<Vec<Tetromino>>();
-
-        bag.shuffle(seed);
-        bag
-    }
-
-    fn get_next(&mut self, seed: &mut StdRng) -> Tetromino {
-        self.next.push(self.rest.pop().unwrap());
-        if self.rest.is_empty() {
-            self.rest = Bag::rand_bag_gen(seed);
-        }
-        self.next.remove(0)
-    }
-}
 
 pub struct PlayerTimers {
     pub line_clear_delay: Pin<Box<Sleep>>,

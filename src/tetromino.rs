@@ -3,7 +3,7 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use strum_macros::EnumIter;
 
-use crate::{config, display::{Dimension, BOARD_DIMENSION}, player::Stack};
+use crate::{config, display::{Dimension, BOARD_DIMENSION}, stack::Stack};
 
 pub type Shape = Vec<Dimension>;
 
