@@ -1,9 +1,9 @@
 use std::io::Result;
 
-use crate::{conn::ConnTrait, player::{Player, ShiftDirection}, stack::Stack, tetromino::{RotationDirection, Tetromino}};
+use crate::{board::Board, conn::ConnTrait, player::Player, tetromino::{ShiftDirection, RotationDirection, Tetromino}};
 
-fn check_valid_play(tetromino: &Tetromino, stack: &Stack) -> bool {
-    !tetromino.overlapping(stack) && tetromino.hitting_bottom(stack) // TODO reachability check
+fn check_valid_play(tetromino: &Tetromino, board: &Board) -> bool {
+    !board.overlapping(tetromino) && board.hitting_bottom(tetromino) // TODO reachability check
 }
 
 pub struct Agent {
@@ -27,11 +27,11 @@ impl Agent {
             tetromino.geometry.transform(-1, 0);
         }
 
-        for i in 0..player.stack.len() {
-            for _ in 0..player.stack.len() {
+        for i in 0..player.board.len() {
+            for _ in 0..player.board.len() {
                 for _ in 0..4 {
                     tetromino.geometry.rotate(RotationDirection::Clockwise);
-                    if check_valid_play(&tetromino, &player.stack) {
+                    if check_valid_play(&tetromino, &player.board) {
                         valid_plays.push(tetromino.clone());
                     }
                 }
@@ -49,11 +49,11 @@ impl Agent {
         let mut scores: Vec<(Tetromino, i32)> = Vec::new();
 
         for play in valid_plays {
-            let mut stack = Stack(player.stack.clone());
-            stack.add(&play);
+            let mut board = Board(player.board.clone());
+            board.add(&play);
             let mut score = 0;
-            score += stack.evaluate_gaps();
-            score += stack.evaluate_height();
+            score += board.evaluate_gaps();
+            score += board.evaluate_height();
             scores.push((play, score));
 
         }

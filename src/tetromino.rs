@@ -3,9 +3,33 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use strum_macros::EnumIter;
 
-use crate::{config, display::{Dimension, BOARD_DIMENSION}, stack::Stack};
+use crate::{config, board::{Board, Dimension}};
+
+static JLSTZ_OFFSETS: [[(i32, i32); 5]; 4] = [
+    [( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // North
+    [( 0,  0), ( 1,  0), ( 1, -1), ( 0,  2), ( 1,  2)], // East
+    [( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // South
+    [( 0,  0), (-1,  0), (-1, -1), ( 0,  2), (-1,  2)], // West
+];
+
+static I_OFFSETS: [[(i32, i32); 5]; 4] = [
+    [( 0,  0), (-1,  0), ( 2,  0), (-1,  0), ( 2,  0)],
+    [(-1,  0), ( 0,  0), ( 0,  0), ( 0,  1), ( 0, -2)],
+    [(-1,  1), ( 1,  1), (-2,  1), ( 1,  0), (-2,  0)],
+    [( 0,  1), ( 0,  1), ( 0,  1), ( 0, -1), ( 0,  2)],
+];
+
+static O_OFFSETS: [[(i32, i32); 5]; 4] = [
+    [( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
+    [( 0, -1), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
+    [(-1, -1), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
+    [(-1,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
+];
 
 pub type Shape = Vec<Dimension>;
+
+#[derive(FromPrimitive, PartialEq)]
+pub enum ShiftDirection { Left, Right }
 
 #[derive(PartialEq)]
 pub enum RotationDirection { Clockwise, CounterClockwise }
@@ -173,10 +197,60 @@ impl Tetromino {
         }
     }
 
-    pub fn start_pos_transform(&mut self, stack: &Stack) {
+    pub fn shift(&mut self, direction: ShiftDirection, board: &Board) -> bool {
+        let (dx, can_shift) = match direction {
+            ShiftDirection::Left => (-1, !board.hitting_left(self)),
+            ShiftDirection::Right => (1, !board.hitting_right(self)),
+        };
+
+        if can_shift {
+            self.geometry.transform(dx, 0);
+        }
+
+        can_shift
+    }
+
+    pub fn rotate(&mut self, direction: RotationDirection, board: &Board) -> bool {
+        let mut can_rotate = false;
+
+        let mut rotated = self.clone();
+        rotated.geometry.rotate(direction);
+
+        let offset_table = match self.variant {
+            TetrominoVariant::J |
+            TetrominoVariant::L |
+            TetrominoVariant::S |
+            TetrominoVariant::T |
+            TetrominoVariant::Z => JLSTZ_OFFSETS,
+            TetrominoVariant::I => I_OFFSETS,
+            TetrominoVariant::O => O_OFFSETS,
+        };
+
+        for i in 0..offset_table[0].len() {
+            let offset_x = offset_table[rotated.geometry.direction as usize][i].0
+                - offset_table[self.geometry.direction as usize][i].0;
+            let offset_y = offset_table[rotated.geometry.direction as usize][i].1
+                - offset_table[self.geometry.direction as usize][i].1;
+
+            rotated.geometry.transform(-offset_x, -offset_y);
+
+            can_rotate = !board.overlapping(&rotated);
+
+            if can_rotate {
+                *self = rotated;
+                break
+            }
+
+            rotated.geometry.transform(offset_x, offset_y);
+        }
+
+        can_rotate
+    }
+
+    pub fn start_pos_transform(&mut self, board: &Board) {
         self.geometry.transform(3, 18);
         for i in 17..20 {
-            if stack[i].iter().any(|block| block.is_some()) {
+            if board[i].iter().any(|block| block.is_some()) {
                 self.geometry.transform(0, 1);
             }
         }
@@ -187,40 +261,6 @@ impl Tetromino {
             let t_x = x_offset + (d.0 as u16 + 1) * 2;
             let t_y = y_offset + (d.1 as u16);
             t_y == y && (t_x == x || t_x - 1 == x)
-        })
-    }
-
-    pub fn overlapping(&self, stack: &Stack) -> bool {
-        self.geometry.shape.iter().any(|position| {
-            position.0 < 0 ||
-            position.1 < 0 ||
-            position.0 > BOARD_DIMENSION.0 - 1 ||
-            position.1 > BOARD_DIMENSION.1 - 1 ||
-            stack[position.1 as usize][position.0 as usize].is_some()
-        })
-    }
-
-    pub fn hitting_bottom(&self, stack: &Stack) -> bool {
-        self.geometry.shape.iter().any(|position| {
-            position.1 == 0 ||
-            position.1 < BOARD_DIMENSION.1 &&
-            stack[(position.1 - 1) as usize][position.0 as usize].is_some()
-        })
-    }
-
-    pub fn hitting_left(&self, stack: &Stack) -> bool {
-        self.geometry.shape.iter().any(|position| {
-            position.0 == 0 ||
-            position.1 < BOARD_DIMENSION.1 &&
-            stack[position.1 as usize][(position.0 - 1) as usize].is_some()
-        })
-    }
-
-    pub fn hitting_right(&self, stack: &Stack) -> bool {
-        self.geometry.shape.iter().any(|position| {
-            position.0 == BOARD_DIMENSION.0 - 1 ||
-            position.1 < BOARD_DIMENSION.1 &&
-            stack[position.1 as usize][(position.0 + 1) as usize].is_some()
         })
     }
 }

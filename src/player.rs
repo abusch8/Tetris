@@ -1,38 +1,12 @@
 use std::{collections::HashSet, io::Result, pin::Pin, time::Duration};
 use rand::{rngs::StdRng, SeedableRng};
 use tokio::time::{interval, sleep, Interval, Sleep};
-use num_derive::FromPrimitive;
 
-use crate::{bag::Bag, conn::ConnTrait, score::{ClearKind, Score}, stack::Stack, tetromino::*};
+use crate::{bag::Bag, board::Board, conn::ConnTrait, score::{ClearKind, Score}, tetromino::*};
 
 const LOCK_RESET_LIMIT: u8 = 15;
 const LOCK_DURATION: Duration = Duration::from_millis(500);
 const LINE_CLEAR_DURATION: Duration = Duration::from_millis(125);
-
-static JLSTZ_OFFSETS: [[(i32, i32); 5]; 4] = [
-    [( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // North
-    [( 0,  0), ( 1,  0), ( 1, -1), ( 0,  2), ( 1,  2)], // East
-    [( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)], // South
-    [( 0,  0), (-1,  0), (-1, -1), ( 0,  2), (-1,  2)], // West
-];
-
-static I_OFFSETS: [[(i32, i32); 5]; 4] = [
-    [( 0,  0), (-1,  0), ( 2,  0), (-1,  0), ( 2,  0)],
-    [(-1,  0), ( 0,  0), ( 0,  0), ( 0,  1), ( 0, -2)],
-    [(-1,  1), ( 1,  1), (-2,  1), ( 1,  0), (-2,  0)],
-    [( 0,  1), ( 0,  1), ( 0,  1), ( 0, -1), ( 0,  2)],
-];
-
-static O_OFFSETS: [[(i32, i32); 5]; 4] = [
-    [( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
-    [( 0, -1), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
-    [(-1, -1), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
-    [(-1,  0), ( 0,  0), ( 0,  0), ( 0,  0), ( 0,  0)],
-];
-
-
-#[derive(FromPrimitive, PartialEq)]
-pub enum ShiftDirection { Left, Right }
 
 #[derive(Copy, Clone)]
 pub enum PlayerKind { Computer, Local, Remote }
@@ -49,7 +23,7 @@ pub struct Player {
     pub holding: Option<Tetromino>,
     pub ghost: Option<Tetromino>,
     pub bag: Bag,
-    pub stack: Stack,
+    pub board: Board,
     pub score: Score,
     pub clearing: HashSet<usize>,
     pub can_hold: bool,
@@ -66,10 +40,10 @@ impl Player {
         let mut seed = StdRng::seed_from_u64(seed);
         let mut bag = Bag::new(&mut seed);
 
-        let stack = Stack::new();
+        let board = Board::new();
 
         let mut falling = bag.get_next(&mut seed);
-        falling.start_pos_transform(&stack);
+        falling.start_pos_transform(&board);
 
         let timers = PlayerTimers {
             line_clear_delay: Box::pin(sleep(Duration::ZERO)),
@@ -83,7 +57,7 @@ impl Player {
             holding: None,
             ghost: None,
             bag,
-            stack,
+            board,
             score: Score::new(start_level),
             clearing: HashSet::new(),
             can_hold: true,
@@ -109,10 +83,10 @@ impl Player {
 
     pub fn update_ghost(&mut self) {
         let mut ghost = self.falling.clone();
-        while !ghost.hitting_bottom(&self.stack) {
+        while !self.board.hitting_bottom(&ghost) {
             ghost.geometry.transform(0, -1);
         }
-        self.ghost = if ghost.overlapping(&self.stack) {
+        self.ghost = if self.board.overlapping(&ghost) {
             None
         } else {
             Some(ghost)
@@ -121,7 +95,7 @@ impl Player {
 
     pub fn mark_clear(&mut self) {
         self.clearing = HashSet::new();
-        for (i, row) in self.stack.iter().enumerate() {
+        for (i, row) in self.board.iter().enumerate() {
             if row.iter().all(|cell| cell.is_some()) {
                 self.clearing.insert(i);
             }
@@ -145,7 +119,7 @@ impl Player {
             .filter(|&&(d_x, d_y)| {
                 let x = c_x + d_x;
                 let y = c_y + d_y;
-                self.stack
+                self.board
                     .get(x as usize)
                     .and_then(|col| col.get(y as usize))
                     .map_or(true, |cell| cell.is_some())
@@ -156,7 +130,7 @@ impl Player {
     }
 
     pub fn line_clear(&mut self) -> ClearKind {
-        self.stack.line_clear(&self.clearing);
+        self.board.line_clear(&self.clearing);
 
         let clear_kind = ClearKind::from_state(&self);
 
@@ -170,8 +144,8 @@ impl Player {
     }
 
     pub fn add_garbage(&mut self, clear_kind: ClearKind) {
-        self.stack.add_garbage(clear_kind, &mut self.seed);
-        while self.falling.overlapping(&self.stack) {
+        self.board.add_garbage(clear_kind, &mut self.seed);
+        while self.board.overlapping(&self.falling) {
             self.falling.geometry.transform(0, -1);
         }
         self.update_ghost();
@@ -186,98 +160,52 @@ impl Player {
     pub fn set_falling_geometry(&mut self, geometry: Geometry) {
         self.falling.geometry = geometry;
         self.update_ghost();
-        self.locking = self.falling.hitting_bottom(&self.stack);
+        self.locking = self.board.hitting_bottom(&self.falling);
     }
 
-    fn handle_shift(&mut self, direction: ShiftDirection) {
-        match direction {
-            ShiftDirection::Left => {
-                if !self.falling.hitting_left(&self.stack) {
-                    self.falling.geometry.transform(-1, 0);
-                    self.update_ghost();
-                }
-            },
-            ShiftDirection::Right => {
-                if !self.falling.hitting_right(&self.stack) {
-                    self.falling.geometry.transform(1, 0);
-                    self.update_ghost();
-                }
-            },
+    pub async fn shift(&mut self, direction: ShiftDirection, conn: &Box<dyn ConnTrait>) -> Result<()> {
+        if self.lock_reset_count == LOCK_RESET_LIMIT {
+            self.place(conn).await?;
+            return Ok(())
         }
-        self.last_action_was_rotate = false;
-    }
 
-    pub async fn shift(
-        &mut self,
-        direction: ShiftDirection,
-        conn: &Box<dyn ConnTrait>,
-    ) -> Result<()> {
-        match self.kind {
-            PlayerKind::Local => {
-                if self.lock_reset_count == LOCK_RESET_LIMIT {
-                    self.place(conn).await?;
-                }
-                self.handle_shift(direction);
-                self.lock_reset_count += 1;
-                self.reset_lock_timer();
+        if self.falling.shift(direction, &self.board) {
+            self.lock_reset_count += 1;
+            self.reset_lock_timer();
+            self.update_ghost();
+
+            if let PlayerKind::Local = self.kind {
                 conn.send_pos(&self).await?;
-            },
-            PlayerKind::Remote | PlayerKind::Computer=> {
-                self.handle_shift(direction);
-            },
+            }
+
+            self.last_action_was_rotate = false;
         }
-        self.last_action_was_rotate = false;
+
         Ok(())
     }
 
     pub async fn rotate(&mut self, direction: RotationDirection, conn: &Box<dyn ConnTrait>) -> Result<()> {
-        let mut rotated = self.falling.clone();
-        rotated.geometry.rotate(direction);
+        if self.falling.rotate(direction, &self.board) {
+            self.lock_reset_count += 1;
+            self.reset_lock_timer();
+            self.update_ghost();
 
-        let offset_table = match self.falling.variant {
-            TetrominoVariant::J |
-            TetrominoVariant::L |
-            TetrominoVariant::S |
-            TetrominoVariant::T |
-            TetrominoVariant::Z => JLSTZ_OFFSETS,
-            TetrominoVariant::I => I_OFFSETS,
-            TetrominoVariant::O => O_OFFSETS,
-        };
-
-        for i in 0..offset_table[0].len() {
-            let offset_x = offset_table[rotated.geometry.direction as usize][i].0
-                - offset_table[self.falling.geometry.direction as usize][i].0;
-            let offset_y = offset_table[rotated.geometry.direction as usize][i].1
-                - offset_table[self.falling.geometry.direction as usize][i].1;
-
-            rotated.geometry.transform(-offset_x, -offset_y);
-
-            if !rotated.overlapping(&self.stack) {
-                self.falling = rotated;
-                self.lock_reset_count += 1;
-                self.update_ghost();
-                self.reset_lock_timer();
-
-                if let PlayerKind::Local = self.kind {
-                    conn.send_pos(self).await?;
-                }
-
-                self.last_action_was_rotate = true;
-
-                return Ok(())
+            if let PlayerKind::Local = self.kind {
+                conn.send_pos(self).await?;
             }
-            rotated.geometry.transform(offset_x, offset_y);
+
+            self.last_action_was_rotate = true;
         }
 
         Ok(())
     }
 
     pub async fn place(&mut self, conn: &Box<dyn ConnTrait>) -> Result<()> {
-        if !self.falling.hitting_bottom(&self.stack) {
+        if !self.board.hitting_bottom(&self.falling) {
             return Ok(())
         }
 
-        if !self.stack.add(&self.falling) {
+        if !self.board.add(&self.falling) {
             self.lost = true;
             return Ok(())
         }
@@ -289,7 +217,7 @@ impl Player {
         }
 
         let mut falling = self.bag.get_next(&mut self.seed);
-        falling.start_pos_transform(&self.stack);
+        falling.start_pos_transform(&self.board);
 
         self.falling = falling;
         self.locking = false;
@@ -305,7 +233,7 @@ impl Player {
     pub async fn hold(&mut self, conn: &Box<dyn ConnTrait>) -> Result<()> {
         if self.can_hold {
             let mut swap = self.holding.clone().unwrap_or(self.bag.get_next(&mut self.seed));
-            swap.start_pos_transform(&self.stack);
+            swap.start_pos_transform(&self.board);
 
             let tetromino = Tetromino::new(self.falling.variant);
             self.holding = Some(tetromino);
@@ -320,33 +248,39 @@ impl Player {
 
             self.last_action_was_rotate = false;
         }
+
         Ok(())
     }
 
     pub fn drop(&mut self) {
-        if !self.falling.hitting_bottom(&self.stack) {
+        if !self.board.hitting_bottom(&self.falling) {
             self.falling.geometry.transform(0, -1);
             self.lock_reset_count = 0;
             self.reset_lock_timer();
         }
-        self.locking = self.falling.hitting_bottom(&self.stack);
+        self.locking = self.board.hitting_bottom(&self.falling);
     }
 
     pub async fn soft_drop(&mut self, conn: &Box<dyn ConnTrait>) -> Result<()> {
         self.drop();
-        if !self.falling.hitting_bottom(&self.stack) {
+
+        if !self.board.hitting_bottom(&self.falling) {
             self.score.score += 1;
         }
+
         conn.send_pos(self).await?;
+
         Ok(())
     }
 
     pub async fn hard_drop(&mut self, conn: &Box<dyn ConnTrait>) -> Result<()> {
-        while !self.falling.hitting_bottom(&self.stack) {
+        while !self.board.hitting_bottom(&self.falling) {
             self.falling.geometry.transform(0, -1);
             self.score.score += 2;
         }
+
         self.place(conn).await?;
+
         Ok(())
     }
 }

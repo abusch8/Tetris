@@ -10,6 +10,7 @@ use crate::{conn::ConnKind, run::run};
 
 mod agent;
 mod bag;
+mod board;
 mod color;
 mod config;
 mod conn;
@@ -20,7 +21,6 @@ mod game;
 mod player;
 mod run;
 mod score;
-mod stack;
 mod tetromino;
 
 #[derive(ValueEnum, Clone, Copy)]

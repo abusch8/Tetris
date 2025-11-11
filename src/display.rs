@@ -5,12 +5,7 @@ use crossterm::{
 use tokio::time::{interval, Interval};
 use std::fmt::Write as FmtWrite;
 
-use crate::{color::get_board_color, config, debug, player::Player, Mode};
-
-pub type Dimension = (i32, i32);
-
-pub const BOARD_DIMENSION: Dimension = (10, 20);
-pub const BOARD_MP_OFFSET: u16 = 30;
+use crate::{board::{BOARD_DIMENSION, BOARD_MP_OFFSET}, color::get_board_color, config, debug, player::Player, Mode};
 
 pub struct Display {
     pub stdout: Stdout,
@@ -32,7 +27,6 @@ struct TextOverlay {
 }
 
 impl Display {
-
     fn plot_text_overlays(text_overlays: Vec<TextOverlay>) -> HashMap<(u16, u16), StyledContent<char>> {
         let mut text_map = HashMap::new();
         for TextOverlay { x, y, content, style } in text_overlays {
@@ -277,7 +271,7 @@ impl Display {
                 let j = (self.board_y.1 - 2 - y) as usize;
                 let k = ((x - board_x.0 - 1) / 2) as usize;
 
-                if let Some(color) = players[i].stack[j][k] {
+                if let Some(color) = players[i].board[j][k] {
                     content = Some(if players[i].clearing.get(&j).is_some() {
                         '▓'.with(Color::White)
                     } else {

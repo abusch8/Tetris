@@ -1,7 +1,7 @@
 use std::{io::Result, process::exit};
 use crossterm::event::{Event, KeyEvent, KeyEventKind};
 
-use crate::{config, conn::ConnTrait, display::Display, exit_tui_mode, player::{Player, ShiftDirection}, tetromino::RotationDirection};
+use crate::{config, conn::ConnTrait, display::Display, exit_tui_mode, player::Player, tetromino::{ShiftDirection, RotationDirection}};
 
 #[derive(Clone)]
 pub enum InputAction {

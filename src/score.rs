@@ -23,7 +23,7 @@ pub struct Score {
 impl ClearKind {
     pub fn from_state(player: &Player) -> Self {
         let num_cleared = player.clearing.len();
-        let perfect_clear = player.stack.iter().flatten().all(|cell| cell.is_none());
+        let perfect_clear = player.board.iter().flatten().all(|cell| cell.is_none());
         let is_t_spin = player.t_spin_check();
         match (num_cleared, perfect_clear, is_t_spin) {
             (_, true, _) => ClearKind::PerfectClear,
