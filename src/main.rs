@@ -8,7 +8,6 @@ use clap::{Parser, ValueEnum};
 
 use crate::{conn::ConnKind, run::run};
 
-mod agent;
 mod color;
 mod config;
 mod conn;
@@ -27,10 +26,6 @@ pub enum Mode {
     Singleplayer,
     #[clap(alias = "m")]
     Multiplayer,
-    #[clap(alias = "pvc")]
-    PlayerVsComputer,
-    #[clap(alias = "cvc")]
-    ComputerVsComputer,
 }
 
 #[derive(Parser)]

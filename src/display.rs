@@ -32,7 +32,6 @@ struct TextOverlay {
 }
 
 impl Display {
-
     fn plot_text_overlays(text_overlays: Vec<TextOverlay>) -> HashMap<(u16, u16), StyledContent<char>> {
         let mut text_map = HashMap::new();
         for TextOverlay { x, y, content, style } in text_overlays {
@@ -147,7 +146,7 @@ impl Display {
     pub fn new(mode: Mode) -> Result<Self> {
         let stdout = stdout();
 
-        let is_multiplayer = matches!(mode, Mode::Multiplayer | Mode::PlayerVsComputer | Mode::ComputerVsComputer);
+        let is_multiplayer = matches!(mode, Mode::Multiplayer);
 
         let terminal_size = terminal::size()?;
 

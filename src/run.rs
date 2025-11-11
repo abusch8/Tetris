@@ -1,9 +1,9 @@
 use std::{io::Result, time::{SystemTime, UNIX_EPOCH}};
 use crossterm::event::EventStream;
 use futures::{FutureExt, stream::StreamExt};
-use tokio::{select, time::{interval, sleep, Duration}};
+use tokio::{select, time::{interval, Duration}};
 
-use crate::{agent::Agent, config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, tetromino::Geometry, Mode};
+use crate::{config, conn::{Conn, ConnKind, TcpPacketMode, UdpPacketMode}, display::Display, event::handle_game_event, game::Game, tetromino::Geometry, Mode};
 
 pub async fn run(mode: Mode, conn_kind: ConnKind, start_level: u32) -> Result<()> {
     let mut reader = EventStream::new();
@@ -117,39 +117,6 @@ pub async fn run(mode: Mode, conn_kind: ConnKind, start_level: u32) -> Result<()
                                 },
                                 _ => (),
                             }
-                        },
-                    )
-                }
-            }
-        },
-        Mode::PlayerVsComputer => {
-            let mut agent = Agent::new();
-            let mut agent_delay = Box::pin(sleep(Duration::ZERO));
-            if let Some(opponent) = game.opponent.as_mut() {
-                agent.evaluate(opponent);
-                loop {
-                    opponent_game_select!(opponent,
-                        _ = &mut agent_delay => {
-                            agent.execute(opponent, &conn).await?;
-                            agent_delay.set(sleep(Duration::from_millis(200)));
-                        },
-                    )
-                }
-            }
-        },
-        Mode::ComputerVsComputer => {
-            let mut p1_agent = Agent::new();
-            let mut p2_agent = Agent::new();
-            let mut agent_delay = Box::pin(sleep(Duration::ZERO));
-            if let Some(opponent) = game.opponent.as_mut() {
-                p1_agent.evaluate(player);
-                p2_agent.evaluate(opponent);
-                loop {
-                    opponent_game_select!(opponent,
-                        _ = &mut agent_delay => {
-                            p1_agent.execute(player, &conn).await?;
-                            p2_agent.execute(opponent, &conn).await?;
-                            agent_delay.set(sleep(Duration::from_millis(200)));
                         },
                     )
                 }

@@ -37,7 +37,7 @@ static O_OFFSETS: [[(i32, i32); 5]; 4] = [
 pub enum ShiftDirection { Left, Right }
 
 #[derive(Copy, Clone)]
-pub enum PlayerKind { Computer, Local, Remote }
+pub enum PlayerKind { Local, Remote }
 
 pub struct Stack(pub Vec<Vec<Option<Color>>>);
 
@@ -73,29 +73,6 @@ impl Stack {
         let line = (0..10).map(|i| if i == hole { None } else { Some(Color::White) }).collect();
         let garbage = vec![line; clear_kind.garbage_line_count()];
         self.splice(0..0, garbage);
-    }
-
-    pub fn evaluate_gaps(&self) -> i32 {
-        let mut score = 0;
-
-        for row in self.iter() {
-            let mut x = 0;
-            for k in row.iter() {
-                if k.is_some() {
-                    x += 1;
-                }
-                score += x / 10
-            }
-        }
-        score
-    }
-
-    pub fn evaluate_height(&self) -> i32 {
-        self.iter()
-            .enumerate()
-            .find(|(_, row)| row.iter().any(|k| k.is_some()))
-            .map(|(i, _)| i)
-            .unwrap_or(self.len()) as i32
     }
 }
 
@@ -325,7 +302,7 @@ impl Player {
                 self.reset_lock_timer();
                 conn.send_pos(&self).await?;
             },
-            PlayerKind::Remote | PlayerKind::Computer=> {
+            PlayerKind::Remote => {
                 self.handle_shift(direction);
             },
         }
