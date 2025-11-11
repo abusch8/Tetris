@@ -54,9 +54,7 @@ I also recommend that you adjust your keyboard's repeat rate and delay.  It can 
 - Scoreboard
 - Main menu
 - Game over screen
-- T-Spin scoring
 - Fix soft drop scoring accuracy
 - Prevent infinity
-- Multiplayer garbage system
 - Multiplayer AI opponents
 
